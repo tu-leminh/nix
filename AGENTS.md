@@ -18,22 +18,38 @@ Two NixOS configurations from one flake:
 - `nixosConfigurations.installer` → `.#iso` = `…build.isoImage`.
 - `nixosConfigurations.homelab` (x86_64-linux, `stateVersion = "26.11"`).
 
-## Module map
+## Layout
+
+`hosts/` holds everything unique to one machine; `modules/` holds host-agnostic
+capabilities. `flake.nix` turns every directory under `hosts/` into a
+`nixosConfigurations.<name>` automatically (add a machine = add a folder), plus
+the standalone `installer` ISO. Each host's `default.nix` imports the modules it
+wants and sets its own hostname/stateVersion.
 
 ```
+hosts/
+  homelab/default.nix    imports modules + host specifics (hostname, stateVersion)
+  homelab/disk.nix       the 5-disk bcachefs pool; imports tiering.nix
+  homelab/tiering.nix    first-boot per-directory redundancy
+  homelab/network.nix    static enp6s0 (192.168.1.100)
 modules/
-  iso/default.nix        installer image (installation-cd-minimal-new-kernel-no-zfs + bcachefs + keyutils)
-  disko/default.nix      the 5-disk bcachefs pool
-  disko/tiering.nix      first-boot per-directory redundancy
-  system/default.nix     bootloader, hostname, firewall off, timezone, base pkgs; imports the rest
-  system/users.nix       root + mt (single-space passwords), ~/.ssh tmpfiles dir
-  system/ssh.nix         openssh (no root login, password auth)
-  system/network.nix     static enp6s0
-  desktop/default.nix    GDM + GNOME + Sway + PipeWire
+  base.nix               bootloader, NetworkManager, firewall off, timezone, base pkgs; imports users + ssh
+  users.nix              root + mt (single-space passwords, nushell login shell), ~/.ssh tmpfiles dir
+  ssh.nix                openssh (no root login, password auth)
+  desktop.nix            GDM + GNOME + Sway + PipeWire + Sway UI toolkit; server no-sleep policy
+  apps.nix               user apps + dev tools (wezterm, firefox, neovim, lazygit, claude-code); allowUnfree
+  iso.nix                installer image (installation-cd-graphical-gnome + bcachefs + keyutils)
   k3s/default.nix        k3s server + kube tooling; imports argocd.nix + perm-fixer.nix
   k3s/argocd.nix         homelab-bootstrap service
   k3s/perm-fixer.nix     chown app hostPath dirs to uid/gid 1000 on inotify change
 ```
+
+### Adding a machine
+
+Create `hosts/<name>/default.nix` importing `../../modules/base.nix` plus
+whichever capability modules apply, set `networking.hostName` and
+`system.stateVersion`, and add per-host disk/network files. No `flake.nix` edit
+needed. Keep `modules/` free of host assumptions (IPs, disk ids, hostname).
 
 ## Storage
 
@@ -85,7 +101,7 @@ DHCP). WiFi and other links stay NM-managed.
 - systemd-boot + EFI; `boot.supportedFilesystems = [ "bcachefs" ]`.
 - Firewall **off** (trusted home LAN) — so no k3s/MetalLB port rules are needed.
 - `root` and `mt` both have `initialPassword = " "` (change on first boot).
-  `mt` is in `wheel` + `networkmanager`.
+  `mt` is in `wheel` + `networkmanager`, login shell is nushell.
 - OpenSSH: `PermitRootLogin = no`, `PasswordAuthentication = true`.
 - Timezone `Asia/Ho_Chi_Minh`.
 
@@ -93,6 +109,12 @@ DHCP). WiFi and other links stay NM-managed.
 
 GDM offers both GNOME and Sway (Wayland) at login. PipeWire (alsa+pulse),
 `hardware.graphics`, fonts, and a small Sway toolkit (foot/wofi/waybar).
+Because this box is a server, `desktop.nix` disables all auto-sleep: GDM
+`autoSuspend = false`, the systemd sleep/suspend/hibernate/hybrid-sleep targets
+are off, and a dconf profile sets GNOME's idle power actions to "nothing".
+
+User apps and dev tools are split into `apps.nix` (wezterm, firefox, neovim,
+lazygit, claude-code) so they're easy to trim; `allowUnfree` lives there too.
 
 ## K3s + Argo CD bootstrap
 
