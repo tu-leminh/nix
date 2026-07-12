@@ -14,8 +14,8 @@
     };
     script = ''
       set -eu
-      bcachefs setattr --data_replicas=3 --erasure_code=1 /data/tier1
-      bcachefs setattr --data_replicas=1 --erasure_code=0 /data/tier3
+      bcachefs set-file-option --data_replicas=3 --erasure_code=1 /data/tier1
+      bcachefs set-file-option --data_replicas=1 --erasure_code=0 /data/tier3
       touch /var/lib/bcachefs-tiering.done
     '';
   };
