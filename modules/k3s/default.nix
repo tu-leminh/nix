@@ -2,7 +2,7 @@
 # MetalLB replace the bundled ones. Firewall is off, so no port rules.
 { pkgs, ... }:
 {
-  imports = [ ./argocd.nix ];
+  imports = [ ./argocd.nix ./perm-fixer.nix ];
 
   services.k3s = {
     enable = true;

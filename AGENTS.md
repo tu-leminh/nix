@@ -30,8 +30,9 @@ modules/
   system/ssh.nix         openssh (no root login, password auth)
   system/network.nix     static enp6s0
   desktop/default.nix    GDM + GNOME + Sway + PipeWire
-  k3s/default.nix        k3s server + kube tooling; imports argocd.nix
+  k3s/default.nix        k3s server + kube tooling; imports argocd.nix + perm-fixer.nix
   k3s/argocd.nix         homelab-bootstrap service
+  k3s/perm-fixer.nix     chown app hostPath dirs to uid/gid 1000 on inotify change
 ```
 
 ## Storage
