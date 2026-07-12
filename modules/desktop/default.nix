@@ -21,5 +21,6 @@
   };
 
   fonts.packages = with pkgs; [ noto-fonts noto-fonts-color-emoji dejavu_fonts ];
-  environment.systemPackages = with pkgs; [ foot wofi waybar ]; # sway tools
+  nixpkgs.config.allowUnfree = true;
+  environment.systemPackages = with pkgs; [ foot wofi waybar neovim claude-code firefox lazygit]; # sway tools + temporary add, move them later
 }
