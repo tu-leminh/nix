@@ -1,5 +1,5 @@
 {
-  description = "Bcachefs installer ISO + tiered NixOS home-lab hosts";
+  description = "NixOS homelab + Ubuntu work-linux + macOS work-mac";
 
   inputs = {
     nixpkgs.url = "github:NixOS/nixpkgs/nixos-unstable";
@@ -7,6 +7,8 @@
     disko.inputs.nixpkgs.follows = "nixpkgs";
     home-manager.url = "github:nix-community/home-manager";
     home-manager.inputs.nixpkgs.follows = "nixpkgs";
+    # darwin.url = "github:lnl7/nix-darwin";
+    # darwin.inputs.nixpkgs.follows = "nixpkgs";
   };
 
   outputs =
@@ -14,25 +16,27 @@
     let
       system = "x86_64-linux";
       lib = nixpkgs.lib;
-
-      # Every directory under hosts/ becomes a nixosConfiguration of that name.
-      hostNames = builtins.attrNames (lib.filterAttrs (_: t: t == "directory") (builtins.readDir ./hosts));
-      mkHost = name: lib.nixosSystem {
+    in
+    {
+      nixosConfigurations.homelab = lib.nixosSystem {
         inherit system;
         modules = [
           disko.nixosModules.disko
           home-manager.nixosModules.home-manager
-          (./hosts + "/${name}")
+          ./hosts/homelab
         ];
       };
-    in
-    {
-      nixosConfigurations = lib.genAttrs hostNames mkHost // {
-        # Bootable bcachefs installer image (not a real host).
-        installer = lib.nixosSystem {
-          inherit system;
-          modules = [ ./modules/iso.nix ];
-        };
+
+      # Bootable bcachefs installer image
+      nixosConfigurations.installer = lib.nixosSystem {
+        inherit system;
+        modules = [ ./hosts/homelab/iso.nix ];
+      };
+
+      # Ubuntu work laptop — standalone home-manager
+      homeConfigurations."mt@work-linux" = home-manager.lib.homeManagerConfiguration {
+        pkgs = nixpkgs.legacyPackages.${system};
+        modules = [ ./hosts/work-linux/home.nix ];
       };
 
       # `nix build .#iso`

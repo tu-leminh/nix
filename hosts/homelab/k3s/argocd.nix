@@ -38,13 +38,25 @@ in
 
       until kubectl get --raw=/readyz >/dev/null 2>&1; do sleep 5; done
 
-      helm repo add --force-update argo https://argoproj.github.io/argo-helm
-      helm repo update argo
-      helm upgrade --install argocd argo/argo-cd \
-        --namespace core --create-namespace \
-        --set server.service.type=LoadBalancer \
-        --set server.insecure=true \
-        --wait
+      # Install Argo CD only if it isn't already there. Once bootstrapped it
+      # self-manages via the platform-bootstrap ApplicationSet and owns its own
+      # ConfigMaps, so re-running `helm upgrade` loses a server-side-apply
+      # ownership fight with argocd-controller and fails the whole unit — which
+      # then stalls (~56s) and fails EVERY nixos-rebuild. Skipping when already
+      # present keeps this genuinely idempotent/safe-to-re-run.
+      #
+      # No --wait: this unit is ordered Before=multi-user.target, so waiting for
+      # Argo CD pods to be Ready would block the login prompt for minutes on
+      # boot. helm applies all manifests (incl. CRDs) synchronously before
+      # returning; pods come up asynchronously, which is what we want here.
+      if ! kubectl -n core get deploy argocd-server >/dev/null 2>&1; then
+        helm repo add --force-update argo https://argoproj.github.io/argo-helm
+        helm repo update argo
+        helm upgrade --install argocd argo/argo-cd \
+          --namespace core --create-namespace \
+          --set server.service.type=LoadBalancer \
+          --set server.insecure=true
+      fi
 
       # Argo CD repository credentials for the private repo (SSH deploy key).
       kubectl -n core create secret generic repo-argohome \

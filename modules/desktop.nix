@@ -32,6 +32,10 @@
 
   hardware.graphics.enable = true;
 
+  # Bluetooth stack (needs the Intel adapter firmware from base.nix).
+  hardware.bluetooth.enable = true;
+  hardware.bluetooth.powerOnBoot = true;
+
   security.rtkit.enable = true;
   services.pipewire = {
     enable = true;

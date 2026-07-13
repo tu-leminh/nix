@@ -63,27 +63,29 @@ One bcachefs filesystem (`pool`) spans all five devices, referenced by
 | `hdd` ×3 | 1TB + 500GB + 2TB | `background_target` |
 
 Pool format args: `--foreground_target=ssd --promote_target=ssd
---background_target=hdd --metadata_target=ssd --replicas=2 --erasure_code`.
-No encryption, no compression.
+--background_target=hdd --metadata_target=ssd --replicas=2`.
+No erasure coding, encryption, or compression.
 
 Subvolumes → mounts: `root`→`/`, `data/tier1..3`→`/data/tier1..3`.
 
 ### Per-directory redundancy
 
-`--replicas=2 --erasure_code` (raid5-style) is the format default, so `/` and
-`/data/tier2` need nothing extra. `tiering.nix` runs a first-boot oneshot
-(`bcachefs-tiering`, stamp `/var/lib/bcachefs-tiering.done`) that sets the rest
-via `bcachefs setattr`, inherited by newly written files:
+`--replicas=2` (no EC) is the format default, so `/` and `/data/tier2` need
+nothing extra. `tiering.nix` runs a first-boot oneshot (`bcachefs-tiering`,
+stamp `/var/lib/bcachefs-tiering.done`) that sets the rest via `bcachefs
+set-file-option`, inherited by newly written files:
 
-- `/data/tier1` → `--data_replicas=3 --erasure_code=1` (raid6-style)
+- `/data/tier1` → `--data_replicas=3 --erasure_code=0` (3-way mirror)
 - `/data/tier3` → `--data_replicas=1 --erasure_code=0`
 
 **Constraints / gotchas:**
 - **Never add `--casefold`** — casefolded dirents break overlayfs, which
   k3s/containerd needs for image layers. It's off by default; recheck on
   bcachefs/kernel updates.
-- `replicas=3 + EC` over 3 HDDs is effectively 3-way mirroring (real raid6 wants
-  ≥4 disks). Valid, tolerates 2 failures, no parity space savings.
+- **EC was dropped** to cut write amplification on the slow/SMR HDDs (parity
+  stripe RMW was a big source of I/O stalls). Plain replication only now.
+- `replicas=3` over 3 HDDs is 3-way mirroring — tolerates 2 device failures at
+  3× space cost.
 - Changing disks = edit `by-id` paths + labels in `disko/default.nix`.
 
 ## Network
@@ -99,6 +101,8 @@ DHCP). WiFi and other links stay NM-managed.
 ## System
 
 - systemd-boot + EFI; `boot.supportedFilesystems = [ "bcachefs" ]`.
+- `hardware.enableRedistributableFirmware` on — amdgpu (GPU/Vulkan), Intel
+  Bluetooth, iwlwifi, and r8169 NIC blobs.
 - Firewall **off** (trusted home LAN) — so no k3s/MetalLB port rules are needed.
 - `root` and `mt` both have `initialPassword = " "` (change on first boot).
   `mt` is in `wheel` + `networkmanager`, login shell is nushell.
@@ -108,7 +112,8 @@ DHCP). WiFi and other links stay NM-managed.
 ## Desktop
 
 GDM offers both GNOME and Sway (Wayland) at login. PipeWire (alsa+pulse),
-`hardware.graphics`, fonts, and a small Sway toolkit (foot/wofi/waybar).
+`hardware.graphics`, Bluetooth (`hardware.bluetooth`, power-on-boot), fonts, and
+a small Sway toolkit (foot/wofi/waybar).
 Because this box is a server, `desktop.nix` disables all auto-sleep: GDM
 `autoSuspend = false`, the systemd sleep/suspend/hibernate/hybrid-sleep targets
 are off, and a dconf profile sets GNOME's idle power actions to "nothing".

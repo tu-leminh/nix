@@ -4,7 +4,13 @@
 {
   home.stateVersion = "26.11";
 
-  programs.nushell.enable = true; # login shell is set in modules/users.nix
+  programs.nushell = {
+    enable = true; # login shell is set in modules/users.nix
+    shellAliases = {
+      spf = "superfile";
+      rebuild = "sudo nixos-rebuild switch --flake ~/nix#homelab";
+    };
+  };
   programs.git = {
     enable = true;
     settings.user.name = "mt";

@@ -1,6 +1,6 @@
 # One bcachefs pool over all 5 disks. Tiers: ssd = foreground+promote,
 # hdd = background, nvme = plain member. ESP (/boot) on the NVMe.
-# Pool default replicas=2 + EC (covers / and tier2); overrides in ./tiering.nix.
+# Pool default replicas=2, no EC (covers / and tier2); overrides in ./tiering.nix.
 { ... }:
 let
   # Whole-disk bcachefs pool member on `dev`, tagged `label`.
@@ -62,7 +62,6 @@ in
         "--background_target=hdd"
         "--metadata_target=ssd"
         "--replicas=2"
-        "--erasure_code"
       ];
       subvolumes = {
         "root".mountpoint = "/";
