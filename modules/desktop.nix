@@ -39,7 +39,7 @@
   # manager), add the package directly rather than re-enabling the whole set.
   services.gnome.tinysparql.enable = false;
   services.gnome.localsearch.enable = false;
-  services.gnome.core-apps.enable = false;
+  services.gnome.core-apps.enable = true;
   services.gnome.gnome-online-accounts.enable = false;
   services.gnome.evolution-data-server.enable = lib.mkForce false;
   services.gnome.gnome-user-share.enable = false;

@@ -13,9 +13,13 @@
 
   systemd.user.services.code-tunnel = {
     wantedBy = [ "default.target" ];
+    # The `code` CLI shells out via `env sh`; a user unit's minimal PATH has no
+    # sh, so without this it exits 127 and trips the restart limiter on boot.
+    path = [ pkgs.bash ];
     serviceConfig = {
       ExecStart = "${pkgs.vscode}/bin/code tunnel --accept-server-license-terms --name homelab";
       Restart = "always";
+      RestartSec = 5;
     };
   };
 
