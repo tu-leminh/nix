@@ -4,7 +4,14 @@
 {
   boot.loader.systemd-boot.enable = true;
   boot.loader.efi.canTouchEfiVariables = true;
+
+  # bcachefs is pre-stable: the on-disk format tracks the kernel, and NixOS
+  # asserts kernel >= 6.7 for it without auto-selecting one. Match the installer
+  # (hosts/installer/default.nix), which formats the pool on linuxPackages_latest
+  # — otherwise the installed system boots a different bcachefs version than the
+  # one that created the pool and fails to mount /.
   boot.supportedFilesystems = [ "bcachefs" ];
+  boot.kernelPackages = pkgs.linuxPackages_latest;
 
   # Vendor firmware: amdgpu (GPU accel / Vulkan), Intel Bluetooth (ibt-*),
   # iwlwifi, and the r8169 NIC. Without it the GPU falls back to software

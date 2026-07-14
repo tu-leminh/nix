@@ -1,7 +1,16 @@
-# One bcachefs pool over all 5 disks. Tiers: ssd = foreground+promote,
-# hdd = background, nvme = plain member. ESP (/boot) on the NVMe.
-# Pool default replicas=2, no EC (covers / and tier2); overrides in ./tiering.nix.
-{ ... }:
+# The 5-disk bcachefs pool layout (disko.devices only). Kept free of `pkgs`
+# and other NixOS options so it can be fed to the disko CLI standalone
+# (`disko --mode disko .../disk-config.nix`) — that path just `import`s this
+# file and calls it without `pkgs`. Runtime storage config (per-directory
+# tiering, SMART) lives in ./storage.nix, which imports this and is pulled into
+# the host via nixos-install --flake. Disk tiers: ssd = foreground+promote,
+# hdd = background, nvme = plain member. ESP (/boot) on the NVMe. Pool default
+# replicas=2, no EC (covers / and tier2); per-directory overrides in storage.nix.
+#
+# A bare attrset, not a `{ ... }:` module function: the disko CLI does
+# `import <file>` and only applies arguments if the result is a function, so a
+# plain attrset can never trip a "called without required argument 'pkgs'"
+# error. NixOS `imports` accepts a config-only attrset like this too.
 let
   # Whole-disk bcachefs pool member on `dev`, tagged `label`.
   poolMember = dev: label: {
@@ -17,8 +26,6 @@ let
   };
 in
 {
-  imports = [ ./tiering.nix ];
-
   disko.devices = {
     disk = {
       # NVMe: ESP (/boot) + pool member.
@@ -29,6 +36,7 @@ in
           type = "gpt";
           partitions = {
             ESP = {
+              priority = 1;
               size = "1G";
               type = "EF00";
               content = {
@@ -38,7 +46,21 @@ in
                 mountOptions = [ "umask=0077" ];
               };
             };
+            # Raw disk swap, layered under zram (see ./swap.nix) as overflow
+            # capacity rather than a replacement for it. Explicit priority:
+            # disko falls back to alphabetical partition order ("pool" before
+            # "swap"), and pool's size="100%" would otherwise claim all
+            # remaining space before this partition gets created.
+            swap = {
+              priority = 2;
+              size = "32G";
+              content = {
+                type = "swap";
+                priority = 10; # lower than zram's, so zram is exhausted first
+              };
+            };
             pool = {
+              priority = 3;
               size = "100%";
               content = { type = "bcachefs"; filesystem = "pool"; label = "nvme.nvme0"; };
             };
@@ -54,8 +76,9 @@ in
 
     bcachefs_filesystems.pool = {
       type = "bcachefs_filesystem";
-      # Never add --casefold: it breaks overlayfs (k3s/containerd). Off by
-      # default; recheck on bcachefs/kernel updates.
+      # Never add --casefold: it breaks overlayfs, which is unreliable on
+      # bcachefs anyway (k3s uses --snapshotter=native to avoid it, see
+      # ./k3s/default.nix). Off by default; recheck on bcachefs/kernel updates.
       extraFormatArgs = [
         "--foreground_target=ssd"
         "--promote_target=ssd"

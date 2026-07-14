@@ -6,10 +6,11 @@
     ../../modules/base.nix
     ../../modules/desktop.nix
     ../../modules/home.nix
-    ./disk.nix
+    ./storage.nix
     ./network.nix
     ./k3s
-    ./tiering.nix
+    ./vscode-tunnel.nix
+    ./swap.nix
   ];
 
   networking.hostName = "homelab";

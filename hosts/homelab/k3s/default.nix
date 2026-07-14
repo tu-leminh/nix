@@ -14,6 +14,9 @@
       "--disable=traefik"
       "--disable=servicelb"
       "--write-kubeconfig-mode=0644"
+      # overlayfs on bcachefs is unreliable for containerd's image layers;
+      # native avoids overlayfs entirely (costs disk space/pull time instead).
+      "--snapshotter=native"
     ];
     # Let kubelet evict pods on reboot/shutdown instead of leaving containerd
     # sandboxes to be killed abruptly (which caused pods stuck

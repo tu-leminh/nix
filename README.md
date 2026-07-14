@@ -24,9 +24,12 @@ sudo dd if=./result/iso/nixos-minimal-*.iso of=/dev/sdX bs=4M status=progress of
 Boot the USB first. This **erases all 5 disks** (wipes any existing OS):
 
 ```
+# rm first so a retry after a failed attempt re-pulls the latest code
+# (`git clone` into an existing /tmp/nix errors out and keeps the stale copy)
+rm -rf /tmp/nix
 git clone https://github.com/tu-leminh/nix.git /tmp/nix
 sudo nix --extra-experimental-features 'nix-command flakes' run \
-  github:nix-community/disko/latest -- --mode disko /tmp/nix/hosts/homelab/disk.nix
+  github:nix-community/disko/latest -- --mode disko /tmp/nix/hosts/homelab/disk-config.nix
 sudo nixos-install --flake /tmp/nix#homelab
 reboot
 ```

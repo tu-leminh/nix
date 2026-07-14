@@ -30,7 +30,7 @@
       # Bootable bcachefs installer image
       nixosConfigurations.installer = lib.nixosSystem {
         inherit system;
-        modules = [ ./hosts/homelab/iso.nix ];
+        modules = [ ./hosts/installer ];
       };
 
       # Ubuntu work laptop — standalone home-manager

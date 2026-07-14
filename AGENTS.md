@@ -3,53 +3,78 @@
 Technical reference for this flake. User-facing steps live in
 [README.md](README.md).
 
+## Conventions
+
+- KISS: prefer the simplest thing that works over clever abstractions.
+- Fewer files grouped by functionality beats many small ones — split a file
+  only when it holds genuinely unrelated concerns.
+- Reuse existing modules/options instead of duplicating config.
+- Comments are short and explain *why*, not what — the Nix itself should read
+  clearly enough that a longer, obvious block is preferred over a terse,
+  cryptic one.
+
 ## Purpose
 
-Two NixOS configurations from one flake:
+One flake, four outputs:
 
-- **`installer`** — a minimal, bcachefs-enabled installation ISO.
-- **`homelab`** — the installed machine: a single bcachefs pool across 5 disks,
-  GNOME + Sway, and a single-node K3s cluster that bootstraps the private
+- **`nixosConfigurations.installer`** — a minimal, bcachefs-enabled
+  installation ISO.
+- **`nixosConfigurations.homelab`** — the installed machine: a single
+  bcachefs pool across 5 disks, GNOME + Sway, and a single-node K3s cluster
+  that bootstraps the private
   [argohome](https://github.com/tu-leminh/argohome) Argo CD GitOps stack.
+- **`homeConfigurations."mt@work-linux"`** — standalone home-manager (no
+  NixOS) for an Ubuntu work laptop: same user packages/dotfiles as homelab,
+  no system-level config.
+- **`hosts/work-mac`** — empty placeholder for a future nix-darwin machine;
+  not wired into `flake.nix` yet.
 
 ## Inputs / outputs
 
-- Inputs: `nixpkgs` (nixos-unstable), `disko`.
+- Inputs: `nixpkgs` (nixos-unstable), `disko`, `home-manager`.
 - `nixosConfigurations.installer` → `.#iso` = `…build.isoImage`.
 - `nixosConfigurations.homelab` (x86_64-linux, `stateVersion = "26.11"`).
+- `homeConfigurations."mt@work-linux"` (x86_64-linux).
 
 ## Layout
 
 `hosts/` holds everything unique to one machine; `modules/` holds host-agnostic
-capabilities. `flake.nix` turns every directory under `hosts/` into a
-`nixosConfigurations.<name>` automatically (add a machine = add a folder), plus
-the standalone `installer` ISO. Each host's `default.nix` imports the modules it
-wants and sets its own hostname/stateVersion.
+NixOS capabilities; `user/` holds the home-manager config shared by every
+machine (system or standalone). Unlike a generate-from-folder setup, each
+output in `flake.nix` is listed explicitly — adding a host means adding both
+the folder *and* a `flake.nix` entry.
 
 ```
 hosts/
-  homelab/default.nix    imports modules + host specifics (hostname, stateVersion)
-  homelab/disk.nix       the 5-disk bcachefs pool; imports tiering.nix
-  homelab/tiering.nix    first-boot per-directory redundancy
-  homelab/network.nix    static enp6s0 (192.168.1.100)
+  homelab/default.nix        imports modules + host nix files; hostname, stateVersion
+  homelab/disk-config.nix    the 5-disk bcachefs pool layout (disko.devices only, no pkgs);
+                              fed to the disko CLI standalone during install
+  homelab/storage.nix        imports disk-config.nix; first-boot per-directory redundancy
+                              and SMART monitoring (the pkgs/NixOS-only storage bits)
+  homelab/network.nix        static enp6s0 (192.168.1.100)
+  homelab/swap.nix           zram swap (raw NVMe swap partition lives in storage.nix)
+  homelab/vscode-tunnel.nix  VS Code tunnel remote access (nix-ld)
+  homelab/k3s/default.nix    k3s server + kube tooling; imports argocd.nix
+  homelab/k3s/argocd.nix     homelab-bootstrap service (Argo CD + argohome)
+  installer/default.nix      standalone installer ISO (installation-cd-graphical-gnome + bcachefs)
+  work-linux/home.nix        standalone home-manager; imports ../../user/default.nix
+  work-mac/default.nix       empty placeholder, not wired into flake.nix
 modules/
-  base.nix               bootloader, NetworkManager, firewall off, timezone, base pkgs; imports users + ssh
-  users.nix              root + mt (single-space passwords, nushell login shell), ~/.ssh tmpfiles dir
-  ssh.nix                openssh (no root login, password auth)
-  desktop.nix            GDM + GNOME + Sway + PipeWire + Sway UI toolkit; server no-sleep policy
-  apps.nix               user apps + dev tools (wezterm, firefox, neovim, lazygit, claude-code); allowUnfree
-  iso.nix                installer image (installation-cd-graphical-gnome + bcachefs + keyutils)
-  k3s/default.nix        k3s server + kube tooling; imports argocd.nix + perm-fixer.nix
-  k3s/argocd.nix         homelab-bootstrap service
-  k3s/perm-fixer.nix     chown app hostPath dirs to uid/gid 1000 on inotify change
+  base.nix                   bootloader, NetworkManager, firewall off, timezone, base pkgs, users, ssh
+  desktop.nix                GDM + GNOME + Sway + PipeWire + Sway UI toolkit; server no-sleep policy
+  home.nix                   wires home-manager into NixOS; home-manager.users.mt = ../user/default.nix
+user/
+  default.nix                mt's home-manager config: nushell, git, dev tools/apps (shared by every host)
 ```
 
 ### Adding a machine
 
-Create `hosts/<name>/default.nix` importing `../../modules/base.nix` plus
-whichever capability modules apply, set `networking.hostName` and
-`system.stateVersion`, and add per-host disk/network files. No `flake.nix` edit
-needed. Keep `modules/` free of host assumptions (IPs, disk ids, hostname).
+Create `hosts/<name>/default.nix` (NixOS) or `hosts/<name>/home.nix`
+(standalone home-manager) importing `../../modules/base.nix` plus whichever
+capability modules apply, set `networking.hostName` and
+`system.stateVersion`, and add per-host disk/network files. Then add the
+matching output in `flake.nix` — it is not generated automatically. Keep
+`modules/` free of host assumptions (IPs, disk ids, hostname).
 
 ## Storage
 
@@ -71,7 +96,7 @@ Subvolumes → mounts: `root`→`/`, `data/tier1..3`→`/data/tier1..3`.
 ### Per-directory redundancy
 
 `--replicas=2` (no EC) is the format default, so `/` and `/data/tier2` need
-nothing extra. `tiering.nix` runs a first-boot oneshot (`bcachefs-tiering`,
+nothing extra. `storage.nix` runs a first-boot oneshot (`bcachefs-tiering`,
 stamp `/var/lib/bcachefs-tiering.done`) that sets the rest via `bcachefs
 set-file-option`, inherited by newly written files:
 
@@ -79,18 +104,18 @@ set-file-option`, inherited by newly written files:
 - `/data/tier3` → `--data_replicas=1 --erasure_code=0`
 
 **Constraints / gotchas:**
-- **Never add `--casefold`** — casefolded dirents break overlayfs, which
-  k3s/containerd needs for image layers. It's off by default; recheck on
-  bcachefs/kernel updates.
+- **Never add `--casefold`** — casefolded dirents break overlayfs, which is
+  unreliable on bcachefs anyway (k3s avoids it via `--snapshotter=native`,
+  see K3s section below). Off by default; recheck on bcachefs/kernel updates.
 - **EC was dropped** to cut write amplification on the slow/SMR HDDs (parity
   stripe RMW was a big source of I/O stalls). Plain replication only now.
 - `replicas=3` over 3 HDDs is 3-way mirroring — tolerates 2 device failures at
   3× space cost.
-- Changing disks = edit `by-id` paths + labels in `disko/default.nix`.
+- Changing disks = edit `by-id` paths + labels in `hosts/homelab/disk-config.nix`.
 
 ## Network
 
-`system/network.nix` sets a NetworkManager static profile on `enp6s0`:
+`hosts/homelab/network.nix` sets a NetworkManager static profile on `enp6s0`:
 `192.168.1.100/24`, gateway + DNS `192.168.1.1`, `ipv4.method = manual` (no
 DHCP). WiFi and other links stay NM-managed.
 
@@ -100,7 +125,10 @@ DHCP). WiFi and other links stay NM-managed.
 
 ## System
 
-- systemd-boot + EFI; `boot.supportedFilesystems = [ "bcachefs" ]`.
+- systemd-boot + EFI; `boot.supportedFilesystems = [ "bcachefs" ]` on
+  `linuxPackages_latest` (base.nix) — bcachefs is pre-stable and its on-disk
+  format tracks the kernel, so the installed system must run the same recent
+  kernel as the installer that formatted the pool, or `/` won't mount.
 - `hardware.enableRedistributableFirmware` on — amdgpu (GPU/Vulkan), Intel
   Bluetooth, iwlwifi, and r8169 NIC blobs.
 - Firewall **off** (trusted home LAN) — so no k3s/MetalLB port rules are needed.
@@ -118,24 +146,31 @@ Because this box is a server, `desktop.nix` disables all auto-sleep: GDM
 `autoSuspend = false`, the systemd sleep/suspend/hibernate/hybrid-sleep targets
 are off, and a dconf profile sets GNOME's idle power actions to "nothing".
 
-User apps and dev tools are split into `apps.nix` (wezterm, firefox, neovim,
-lazygit, claude-code) so they're easy to trim; `allowUnfree` lives there too.
+User apps and dev tools (wezterm, firefox, neovim, lazygit, claude-code) live
+in `user/default.nix` (home-manager), shared by every host so they're easy to
+trim in one place; `allowUnfree` lives in `modules/base.nix`.
 
 ## K3s + Argo CD bootstrap
 
-`k3s/default.nix`: `services.k3s` server with
+`hosts/homelab/k3s/default.nix`: `services.k3s` server with
 `--disable=traefik --disable=servicelb --write-kubeconfig-mode=0644` (argohome
-ships its own Traefik + MetalLB). `KUBECONFIG` is exported system-wide; host
+ships its own Traefik + MetalLB) and `--snapshotter=native` (overlayfs on
+bcachefs is unreliable for containerd's image layers; native trades disk
+space/pull time to avoid it). `KUBECONFIG` is exported system-wide; host
 tools: `kubectl`, `kubernetes-helm`, `argocd`, `k9s`.
 
-`k3s/argocd.nix`: `homelab-bootstrap.service` (oneshot, `RemainAfterExit`,
-after `k3s` + `network-online`). It is idempotent and self-healing:
+`hosts/homelab/k3s/argocd.nix`: `homelab-bootstrap.service` (oneshot,
+`RemainAfterExit`, after `k3s` + `network-online`). It is idempotent and
+self-healing:
 
 1. If `/home/mt/.ssh/id_ed25519` is missing → log a hint and exit 0 (so the box
    boots; re-run with `systemctl restart homelab-bootstrap` after copying it).
 2. Wait for the API (`kubectl get --raw=/readyz`).
-3. `helm upgrade --install argocd argo/argo-cd -n core --create-namespace`
-   with `server.service.type=LoadBalancer` and `server.insecure=true`.
+3. Install Argo CD only if `deploy/argocd-server` doesn't exist yet —
+   `helm upgrade --install argocd argo/argo-cd -n core --create-namespace`
+   with `server.service.type=LoadBalancer` and `server.insecure=true`. Skipped
+   once present so a re-run can't lose a server-side-apply ownership fight
+   with Argo CD's own controller.
 4. Create the Argo CD repository Secret `repo-argohome` (label
    `argocd.argoproj.io/secret-type=repository`) from the SSH key —
    `url = git@github.com:tu-leminh/argohome.git`, no token.

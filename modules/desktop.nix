@@ -30,6 +30,22 @@
     };
   }];
 
+  # Minimal GNOME footprint: this is a server that occasionally gets a
+  # desktop session, not a daily-driver laptop. Drop the background
+  # services/apps that only earn their keep on a personal machine — file
+  # indexing, cloud account sync, LAN file/media sharing, location services.
+  # core-apps also pulls nautilus/gnome-software/maps/music/weather/
+  # contacts/totem etc.; if you want any of those back (e.g. a GUI file
+  # manager), add the package directly rather than re-enabling the whole set.
+  services.gnome.tinysparql.enable = false;
+  services.gnome.localsearch.enable = false;
+  services.gnome.core-apps.enable = false;
+  services.gnome.gnome-online-accounts.enable = false;
+  services.gnome.evolution-data-server.enable = lib.mkForce false;
+  services.gnome.gnome-user-share.enable = false;
+  services.gnome.rygel.enable = false;
+  services.geoclue2.enable = false;
+
   hardware.graphics.enable = true;
 
   # Bluetooth stack (needs the Intel adapter firmware from base.nix).
