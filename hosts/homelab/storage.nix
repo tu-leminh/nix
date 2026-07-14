@@ -1,39 +1,100 @@
-# Runtime storage config for the bcachefs pool: first-boot per-directory
-# tiering and SMART monitoring. The pool layout itself (disko.devices) lives in
-# ./disk-config.nix — a `pkgs`-free file so the disko CLI can consume it
-# standalone; this module can't be handed to disko directly because it needs
-# `pkgs` and sets NixOS-only options. See ./disk-config.nix for tier details.
-{ pkgs, ... }:
-{
-  imports = [ ./disk-config.nix ];
-
-  # First boot: set per-directory redundancy that differs from the pool
-  # default (replicas=2, no EC). bcachefs inherits these to newly written files.
-  systemd.services.bcachefs-tiering = {
-    description = "Per-directory bcachefs redundancy";
-    wantedBy = [ "multi-user.target" ];
-    after = [ "local-fs.target" ];
-    unitConfig.ConditionPathExists = "!/var/lib/bcachefs-tiering.done";
-    path = [ pkgs.bcachefs-tools ];
-    serviceConfig = {
-      Type = "oneshot";
-      RemainAfterExit = true;
+# The 5-disk bcachefs pool layout (disko.devices only). This is the file you
+# hand to the disko CLI during install:
+#   disko --mode disko /tmp/nix/hosts/homelab/storage.nix
+# It is deliberately free of `pkgs` and other NixOS options so disko can
+# evaluate it standalone — the runtime storage config that *does* need `pkgs`
+# (per-directory tiering, SMART) lives in ./storage-services.nix, and both are
+# pulled into the host by nixos-install via ./default.nix.
+#
+# Disk tiers: ssd = foreground+promote, hdd = background, nvme = plain member.
+# ESP (/boot) on the NVMe. Pool default replicas=2, no EC (covers / and tier2);
+# per-directory overrides live in ./storage-services.nix.
+#
+# A bare attrset, not a `{ ... }:` module function: the disko CLI does
+# `import <file>` and only applies arguments if the result is a function, so a
+# plain attrset can never trip a "called without required argument 'pkgs'"
+# error. NixOS `imports` accepts a config-only attrset like this too.
+let
+  # Whole-disk bcachefs pool member on `dev`, tagged `label`.
+  poolMember = dev: label: {
+    type = "disk";
+    device = dev;
+    content = {
+      type = "gpt";
+      partitions.pool = {
+        size = "100%";
+        content = { type = "bcachefs"; filesystem = "pool"; inherit label; };
+      };
     };
-    script = ''
-      set -eu
-      bcachefs set-file-option --data_replicas=3 --erasure_code=0 /data/tier1
-      bcachefs set-file-option --data_replicas=1 --erasure_code=0 /data/tier3
-      touch /var/lib/bcachefs-tiering.done
-    '';
   };
+in
+{
+  disko.devices = {
+    disk = {
+      # NVMe: ESP (/boot) + pool member.
+      nvme = {
+        type = "disk";
+        device = "/dev/disk/by-id/nvme-CT2000P3PSSD8_2350E88850A3";
+        content = {
+          type = "gpt";
+          partitions = {
+            ESP = {
+              priority = 1;
+              size = "1G";
+              type = "EF00";
+              content = {
+                type = "filesystem";
+                format = "vfat";
+                mountpoint = "/boot";
+                mountOptions = [ "umask=0077" ];
+              };
+            };
+            # Raw disk swap, layered under zram (see ./swap.nix) as overflow
+            # capacity rather than a replacement for it. Explicit priority:
+            # disko falls back to alphabetical partition order ("pool" before
+            # "swap"), and pool's size="100%" would otherwise claim all
+            # remaining space before this partition gets created.
+            swap = {
+              priority = 2;
+              size = "32G";
+              content = {
+                type = "swap";
+                priority = 10; # lower than zram's, so zram is exhausted first
+              };
+            };
+            pool = {
+              priority = 3;
+              size = "100%";
+              content = { type = "bcachefs"; filesystem = "pool"; label = "nvme.nvme0"; };
+            };
+          };
+        };
+      };
 
-  # SMART monitoring for the 5 physical disks. Covers physical device health
-  # only (reallocated/pending sectors, temperature) — it knows nothing about
-  # the bcachefs layer itself (replica degradation, checksum errors, scrub
-  # status). Check `bcachefs fs usage -h /` periodically for that.
-  services.smartd = {
-    enable = true;
-    autodetect = true;
+      ssd = poolMember "/dev/disk/by-id/ata-WDC_WDS500G2B0A_2013BV468107" "ssd.ssd0";
+      hdd0 = poolMember "/dev/disk/by-id/ata-HGST_HTS721010A9E630_JR1000D318DL7E" "hdd.hdd0";
+      hdd1 = poolMember "/dev/disk/by-id/ata-WDC_WD5000LPVX-80V0TT0_WD-WX81AB48A024" "hdd.hdd1";
+      hdd2 = poolMember "/dev/disk/by-id/ata-ST2000LM007-1R8174_WDZG9GQS" "hdd.hdd2";
+    };
+
+    bcachefs_filesystems.pool = {
+      type = "bcachefs_filesystem";
+      # Never add --casefold: it breaks overlayfs, which is unreliable on
+      # bcachefs anyway (k3s uses --snapshotter=native to avoid it, see
+      # ./k3s/default.nix). Off by default; recheck on bcachefs/kernel updates.
+      extraFormatArgs = [
+        "--foreground_target=ssd"
+        "--promote_target=ssd"
+        "--background_target=hdd"
+        "--metadata_target=ssd"
+        "--replicas=2"
+      ];
+      subvolumes = {
+        "root".mountpoint = "/";
+        "data/tier1".mountpoint = "/data/tier1";
+        "data/tier2".mountpoint = "/data/tier2";
+        "data/tier3".mountpoint = "/data/tier3";
+      };
+    };
   };
-  environment.systemPackages = [ pkgs.smartmontools ];
 }

@@ -7,6 +7,7 @@
     ../../modules/desktop.nix
     ../../modules/home.nix
     ./storage.nix
+    ./storage-services.nix
     ./network.nix
     ./k3s
     ./vscode-tunnel.nix

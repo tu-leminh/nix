@@ -47,10 +47,10 @@ the folder *and* a `flake.nix` entry.
 ```
 hosts/
   homelab/default.nix        imports modules + host nix files; hostname, stateVersion
-  homelab/disk-config.nix    the 5-disk bcachefs pool layout (disko.devices only, no pkgs);
+  homelab/storage.nix        the 5-disk bcachefs pool layout (disko.devices only, no pkgs);
                               fed to the disko CLI standalone during install
-  homelab/storage.nix        imports disk-config.nix; first-boot per-directory redundancy
-                              and SMART monitoring (the pkgs/NixOS-only storage bits)
+  homelab/storage-services.nix  first-boot per-directory redundancy and SMART monitoring
+                              (the pkgs/NixOS-only storage bits); imported alongside storage.nix
   homelab/network.nix        static enp6s0 (192.168.1.100)
   homelab/swap.nix           zram swap (raw NVMe swap partition lives in storage.nix)
   homelab/vscode-tunnel.nix  VS Code tunnel remote access (nix-ld)
@@ -96,7 +96,7 @@ Subvolumes → mounts: `root`→`/`, `data/tier1..3`→`/data/tier1..3`.
 ### Per-directory redundancy
 
 `--replicas=2` (no EC) is the format default, so `/` and `/data/tier2` need
-nothing extra. `storage.nix` runs a first-boot oneshot (`bcachefs-tiering`,
+nothing extra. `storage-services.nix` runs a first-boot oneshot (`bcachefs-tiering`,
 stamp `/var/lib/bcachefs-tiering.done`) that sets the rest via `bcachefs
 set-file-option`, inherited by newly written files:
 
@@ -111,7 +111,7 @@ set-file-option`, inherited by newly written files:
   stripe RMW was a big source of I/O stalls). Plain replication only now.
 - `replicas=3` over 3 HDDs is 3-way mirroring — tolerates 2 device failures at
   3× space cost.
-- Changing disks = edit `by-id` paths + labels in `hosts/homelab/disk-config.nix`.
+- Changing disks = edit `by-id` paths + labels in `hosts/homelab/storage.nix`.
 
 ## Network
 

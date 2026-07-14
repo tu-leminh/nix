@@ -29,7 +29,7 @@ Boot the USB first. This **erases all 5 disks** (wipes any existing OS):
 rm -rf /tmp/nix
 git clone https://github.com/tu-leminh/nix.git /tmp/nix
 sudo nix --extra-experimental-features 'nix-command flakes' run \
-  github:nix-community/disko/latest -- --mode disko /tmp/nix/hosts/homelab/disk-config.nix
+  github:nix-community/disko/latest -- --mode disko /tmp/nix/hosts/homelab/storage.nix
 sudo nixos-install --flake /tmp/nix#homelab
 reboot
 ```
