@@ -58,3 +58,41 @@ repo. Verify:
 systemctl status homelab-bootstrap
 kubectl -n core get applications
 ```
+
+## 6. Remote access (optional)
+
+The box also runs a VS Code tunnel for remote access. First-time login is
+interactive, once:
+
+```
+export VSCODE_CLI_USE_FILE_KEYCHAIN=1
+code tunnel user login --provider github
+code tunnel --accept-server-license-terms
+```
+
+See `hosts/homelab/vscode-tunnel.nix` for why `VSCODE_CLI_USE_FILE_KEYCHAIN`
+matters on a headless boot.
+
+## 7. Offsite backup (optional)
+
+`/data/tier1` and `/data/tier2` back up weekly (Sunday 03:00) to Google
+Drive, keeping the latest 4 snapshots. First-time setup is interactive, once,
+directly on the box (it already has a browser):
+
+```
+sudo rclone config
+```
+
+Create a remote named **`gdrive`** (type `drive`) and complete the Google
+OAuth flow. See `hosts/homelab/backup.nix` for the schedule/retention knobs.
+
+## 8. Recovering data from a backup
+
+After a reinstall (steps 1–5) and redoing step 7's `sudo rclone config`,
+restore the most recent snapshot — or a specific dated one — with:
+
+```
+sudo systemctl start gdrive-restore@latest.service
+# or: sudo systemctl start gdrive-restore@20260709.service
+journalctl -u 'gdrive-restore@*' -e
+```

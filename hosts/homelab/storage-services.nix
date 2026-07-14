@@ -19,7 +19,9 @@
     script = ''
       set -eu
       bcachefs set-file-option --data_replicas=3 --erasure_code=0 /data/tier1
+      bcachefs set-file-option --data_replicas=2 --erasure_code=0 /data/tier2
       bcachefs set-file-option --data_replicas=1 --erasure_code=0 /data/tier3
+      bcachefs set-file-option --data_replicas=1 --erasure_code=0 /nix/store
       touch /var/lib/bcachefs-tiering.done
     '';
   };

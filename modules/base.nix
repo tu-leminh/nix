@@ -23,6 +23,8 @@
 
   nixpkgs.config.allowUnfree = true; # google-chrome, claude-code
 
+  nix.settings.experimental-features = [ "nix-command" "flakes" ];
+
   time.timeZone = "Asia/Ho_Chi_Minh";
 
   environment.systemPackages = with pkgs; [ bcachefs-tools keyutils git vim btop nushell ];

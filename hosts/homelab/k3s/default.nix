@@ -4,9 +4,6 @@
 {
   imports = [ ./argocd.nix ];
 
-  # Force Kubelet to create all new auto-generated hostPath directories as 777
-  systemd.services.k3s.serviceConfig.UMask = lib.mkForce "0000";
-
   services.k3s = {
     enable = true;
     role = "server";
@@ -14,9 +11,7 @@
       "--disable=traefik"
       "--disable=servicelb"
       "--write-kubeconfig-mode=0644"
-      # overlayfs on bcachefs is unreliable for containerd's image layers;
-      # native avoids overlayfs entirely (costs disk space/pull time instead).
-      "--snapshotter=native"
+      "--snapshotter=stargz"
     ];
     # Let kubelet evict pods on reboot/shutdown instead of leaving containerd
     # sandboxes to be killed abruptly (which caused pods stuck

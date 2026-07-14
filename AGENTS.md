@@ -54,6 +54,7 @@ hosts/
   homelab/network.nix        static enp6s0 (192.168.1.100)
   homelab/swap.nix           zram swap (raw NVMe swap partition lives in storage.nix)
   homelab/vscode-tunnel.nix  VS Code tunnel remote access (nix-ld)
+  homelab/backup.nix         weekly rclone snapshot of /data/tier1+tier2 to Google Drive
   homelab/k3s/default.nix    k3s server + kube tooling; imports argocd.nix
   homelab/k3s/argocd.nix     homelab-bootstrap service (Argo CD + argohome)
   installer/default.nix      standalone installer ISO (installation-cd-graphical-gnome + bcachefs)
@@ -83,11 +84,17 @@ One bcachefs filesystem (`pool`) spans all five devices, referenced by
 
 | Group | Device | Role |
 | --- | --- | --- |
-| `nvme` | Crucial P3 2TB | ESP (`/boot`, FAT32 1G) + pool member, **no target** |
-| `ssd` | WD Blue 500GB | `foreground_target` + `promote_target` |
+| `ssd.nvme0` | Crucial P3 2TB | ESP (`/boot`, FAT32 1G) + pool member, part of `ssd` group for `metadata_target` only — **not** `foreground_target`/`promote_target` |
+| `ssd.ssd0` | WD Blue 500GB | `foreground_target` + `promote_target` (device-specific) **and** part of `ssd` group for `metadata_target` |
 | `hdd` ×3 | 1TB + 500GB + 2TB | `background_target` |
 
-Pool format args: `--foreground_target=ssd --promote_target=ssd
+Device labels are dot-hierarchical (`ssd.ssd0`, `ssd.nvme0`); a target of
+`ssd` matches every label starting with `ssd.`, so `metadata_target=ssd`
+lands on both ssd and nvme, while `foreground_target=ssd.ssd0` and
+`promote_target=ssd.ssd0` are the full, unique label of the ssd device and
+so match only it.
+
+Pool format args: `--foreground_target=ssd.ssd0 --promote_target=ssd.ssd0
 --background_target=hdd --metadata_target=ssd --replicas=2`.
 No erasure coding, encryption, or compression.
 
@@ -112,6 +119,27 @@ set-file-option`, inherited by newly written files:
 - `replicas=3` over 3 HDDs is 3-way mirroring — tolerates 2 device failures at
   3× space cost.
 - Changing disks = edit `by-id` paths + labels in `hosts/homelab/storage.nix`.
+
+## Backup
+
+`hosts/homelab/backup.nix`: `gdrive-backup.service` + matching `.timer` take
+a weekly (Sun 03:00) snapshot of `/data/tier1` and `/data/tier2` to Google
+Drive via `rclone`. Each source path is mirrored as-is (not collapsed to a
+basename) under a dated folder, e.g. `/data/tier1` →
+`gdrive:backup/<YYYYMMDD>/data/tier1`, so the Drive layout is unambiguous and
+restore is a straight mirror back. A prune step keeps only the newest 4
+dated folders (current + 3 previous) — `dirs`, `keep`, and `schedule` are
+plain `let`-bound variables at the top of the file, meant to be the only
+things edited when tuning this.
+
+Restore is manual, on demand: `systemctl start
+gdrive-restore@<date-or-latest>.service` (a template unit, never
+auto-started) pulls a given dated snapshot — or the most recent one — back
+down to the same local paths.
+
+Both units gate on `/root/.config/rclone/rclone.conf` existing
+(`ConditionPathExists`, skips cleanly rather than failing if it's missing)
+— see "Secrets" below for how that file gets there.
 
 ## Network
 
@@ -179,12 +207,38 @@ self-healing:
 
 After that Argo CD pulls argohome itself (~3 min poll); no host cron.
 
+### Volume permissions
+
+argohome's app config volumes are **static `hostPath` PVs** (storageClass
+`local-storage`) backed by `/data/tier2/configs/<app>`. Two consequences that
+bite pods running as a fixed non-root UID (autobrr, qui, seerr, sftpgo, slskd,
+upbrr — all uid 1000):
+
+- **`fsGroup` does nothing here.** Kubelet's `fsGroup` ownership management is
+  skipped for `hostPath`/`local` volumes, so a pod-level `fsGroup: 1000` never
+  chowns the mounted dir. (The `*arr` apps only work because their LinuxServer
+  images start as root and chown the dir themselves via PUID/PGID.)
+- **A kubelet `UMask` override doesn't help either** — it only affects dirs
+  kubelet *auto-creates*, but these dirs are pre-created root:root `0755`.
+
+Fix lives in argohome, not here: each affected chart's `deployment.yaml` runs a
+root `initContainer` (`busybox`, `runAsUser: 0`) that `chown -R 1000:1000`s the
+config mount before the app container starts. Add one whenever a new non-root
+app gets a `hostPath`-backed config PVC.
+
 ## Secrets
 
-No sops/agenix. The single credential — the argohome deploy key — is placed on
-the machine by hand at `~/.ssh/id_ed25519` (imperative state, not in the flake).
-Its public key must be a read-only Deploy key on the private argohome repo.
-Trade-off: not restored automatically on reinstall; re-copy once.
+No sops/agenix. Credentials are imperative state, not in the flake:
+
+- The argohome deploy key, placed by hand at `~/.ssh/id_ed25519`. Its public
+  key must be a read-only Deploy key on the private argohome repo.
+- The VS Code tunnel's GitHub token (`vscode-tunnel.nix`), created via an
+  interactive `code tunnel user login` on the box itself.
+- The Google Drive `rclone.conf` (`backup.nix`), created via an interactive
+  `sudo rclone config` on the box itself — no separate machine or file copy.
+
+Trade-off shared by all three: none are restored automatically on
+reinstall; re-do each once.
 
 ## Validation
 

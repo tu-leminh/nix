@@ -22,7 +22,6 @@
     wezterm
 
     # Browsers
-    firefox
     google-chrome
 
     # Dev / CLI tools

@@ -12,6 +12,7 @@
     ./k3s
     ./vscode-tunnel.nix
     ./swap.nix
+    ./backup.nix
   ];
 
   networking.hostName = "homelab";

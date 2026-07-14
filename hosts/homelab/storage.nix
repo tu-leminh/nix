@@ -1,4 +1,4 @@
-# The 5-disk bcachefs pool layout (disko.devices only). This is the file you
+
 # hand to the disko CLI during install:
 #   disko --mode disko /tmp/nix/hosts/homelab/storage.nix
 # It is deliberately free of `pkgs` and other NixOS options so disko can
@@ -6,9 +6,10 @@
 # (per-directory tiering, SMART) lives in ./storage-services.nix, and both are
 # pulled into the host by nixos-install via ./default.nix.
 #
-# Disk tiers: ssd = foreground+promote, hdd = background, nvme = plain member.
-# ESP (/boot) on the NVMe. Pool default replicas=2, no EC (covers / and tier2);
-# per-directory overrides live in ./storage-services.nix.
+# Disk tiers: ssd alone = foreground+promote, ssd+nvme ("ssd" group) =
+# metadata, hdd = background. ESP (/boot) on the NVMe. Pool default
+# replicas=2, no EC (covers / and tier2); per-directory overrides live in
+# ./storage-services.nix.
 #
 # A bare attrset, not a `{ ... }:` module function: the disko CLI does
 # `import <file>` and only applies arguments if the result is a function, so a
@@ -65,7 +66,7 @@ in
             pool = {
               priority = 3;
               size = "100%";
-              content = { type = "bcachefs"; filesystem = "pool"; label = "nvme.nvme0"; };
+              content = { type = "bcachefs"; filesystem = "pool"; label = "ssd.nvme0"; };
             };
           };
         };
@@ -79,12 +80,10 @@ in
 
     bcachefs_filesystems.pool = {
       type = "bcachefs_filesystem";
-      # Never add --casefold: it breaks overlayfs, which is unreliable on
-      # bcachefs anyway (k3s uses --snapshotter=native to avoid it, see
-      # ./k3s/default.nix). Off by default; recheck on bcachefs/kernel updates.
+      # Never add --casefold: it breaks overlayfs
       extraFormatArgs = [
-        "--foreground_target=ssd"
-        "--promote_target=ssd"
+        "--foreground_target=ssd.ssd0"
+        "--promote_target=ssd.ssd0"
         "--background_target=hdd"
         "--metadata_target=ssd"
         "--replicas=2"
