@@ -45,6 +45,11 @@ in
       # then stalls (~56s) and fails EVERY nixos-rebuild. Skipping when already
       # present keeps this genuinely idempotent/safe-to-re-run.
       #
+      # This relies on apps/core/argocd's chart setting fullnameOverride:
+      # argocd, so the GitOps-rendered resources have the same names as this
+      # seed release and Argo CD adopts them in place instead of standing up a
+      # second, differently-named control plane.
+      #
       # No --wait: this unit is ordered Before=multi-user.target, so waiting for
       # Argo CD pods to be Ready would block the login prompt for minutes on
       # boot. helm applies all manifests (incl. CRDs) synchronously before
