@@ -19,6 +19,10 @@ in
 {
   environment.systemPackages = [ pkgs.rclone ]; # for the `rclone config` step above
 
+  # Runs weekly via the timer below, but being a plain oneshot service it can
+  # also be triggered on demand, same as any systemd service:
+  #   sudo systemctl start gdrive-backup.service
+  # Follow progress with: journalctl -u gdrive-backup -f
   systemd.services.gdrive-backup = {
     description = "Weekly offsite backup of /data/tier1 and /data/tier2 to Google Drive";
     unitConfig.ConditionPathExists = rcloneConfig;

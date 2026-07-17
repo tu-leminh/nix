@@ -86,6 +86,13 @@ sudo rclone config
 Create a remote named **`gdrive`** (type `drive`) and complete the Google
 OAuth flow. See `hosts/homelab/backup.nix` for the schedule/retention knobs.
 
+Trigger a backup on demand, outside the weekly schedule:
+
+```
+sudo systemctl start gdrive-backup.service
+journalctl -u gdrive-backup -f   # follow progress
+```
+
 ## 8. Recovering data from a backup
 
 After a reinstall (steps 1–5) and redoing step 7's `sudo rclone config`,
