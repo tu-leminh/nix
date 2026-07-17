@@ -45,19 +45,24 @@ in
       # then stalls (~56s) and fails EVERY nixos-rebuild. Skipping when already
       # present keeps this genuinely idempotent/safe-to-re-run.
       #
-      # This relies on apps/core/argocd's chart setting fullnameOverride:
-      # argocd, so the GitOps-rendered resources have the same names as this
-      # seed release and Argo CD adopts them in place instead of standing up a
-      # second, differently-named control plane.
+      # The release is named core-argocd so this seed render is byte-identical
+      # to Argo CD's self-managed render: the platform-bootstrap ApplicationSet
+      # names this app {{path[1]}}-{{path.basename}} = core-argocd, and the
+      # argo-cd chart derives resource names AND the app.kubernetes.io/instance
+      # label from .Release.Name. Matching the name here means both renders
+      # agree on names and on instance=core-argocd, so Argo CD adopts the seed
+      # resources in place with no immutable-selector conflict (a prior
+      # fullnameOverride hack fixed names but left the instance label split,
+      # which made the redis NetworkPolicy drop the controller's traffic).
       #
       # No --wait: this unit is ordered Before=multi-user.target, so waiting for
       # Argo CD pods to be Ready would block the login prompt for minutes on
       # boot. helm applies all manifests (incl. CRDs) synchronously before
       # returning; pods come up asynchronously, which is what we want here.
-      if ! kubectl -n core get deploy argocd-server >/dev/null 2>&1; then
+      if ! kubectl -n core get deploy core-argocd-server >/dev/null 2>&1; then
         helm repo add --force-update argo https://argoproj.github.io/argo-helm
         helm repo update argo
-        helm upgrade --install argocd argo/argo-cd \
+        helm upgrade --install core-argocd argo/argo-cd \
           --namespace core --create-namespace \
           --set server.service.type=LoadBalancer \
           --set server.insecure=true
