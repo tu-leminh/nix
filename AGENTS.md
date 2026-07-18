@@ -55,7 +55,8 @@ hosts/
   homelab/swap.nix           zram swap (raw NVMe swap partition lives in storage.nix)
   homelab/vscode-tunnel.nix  VS Code tunnel remote access (nix-ld)
   homelab/backup.nix         weekly rclone snapshot of /data/tier1+tier2 to Google Drive
-  homelab/k3s/default.nix    k3s server + kube tooling; imports argocd.nix
+  homelab/k3s/default.nix    k3s server + kube tooling; imports cilium.nix + argocd.nix
+  homelab/k3s/cilium.nix     homelab-cilium-bootstrap service (Cilium CNI + Gateway API CRDs)
   homelab/k3s/argocd.nix     homelab-bootstrap service (Argo CD + argohome)
   installer/default.nix      standalone installer ISO (installation-cd-graphical-gnome + bcachefs)
   work-linux/home.nix        standalone home-manager; imports ../../user/default.nix
@@ -147,9 +148,10 @@ Both units gate on `/root/.config/rclone/rclone.conf` existing
 `192.168.1.100/24`, gateway + DNS `192.168.1.1`, `ipv4.method = manual` (no
 DHCP). WiFi and other links stay NM-managed.
 
-> `192.168.1.100` is the first IP of argohome's MetalLB pool
-> (`192.168.1.100-200`) — move the node IP out of the range or start the pool at
-> `.101` to avoid a clash.
+> `192.168.1.100` used to be the first IP of argohome's MetalLB pool
+> (`192.168.1.100-200`), overlapping the node's own address - the Cilium
+> LB-IPAM pool that replaced it (`apps/infra/cilium-lb`) starts at `.101`
+> instead.
 
 ## System
 
@@ -159,7 +161,7 @@ DHCP). WiFi and other links stay NM-managed.
   kernel as the installer that formatted the pool, or `/` won't mount.
 - `hardware.enableRedistributableFirmware` on — amdgpu (GPU/Vulkan), Intel
   Bluetooth, iwlwifi, and r8169 NIC blobs.
-- Firewall **off** (trusted home LAN) — so no k3s/MetalLB port rules are needed.
+- Firewall **off** (trusted home LAN) — so no k3s/Cilium port rules are needed.
 - `root` and `mt` both have `initialPassword = " "` (change on first boot).
   `mt` is in `wheel` + `networkmanager`, login shell is nushell.
 - OpenSSH: `PermitRootLogin = no`, `PasswordAuthentication = true`.
@@ -178,17 +180,36 @@ User apps and dev tools (wezterm, firefox, neovim, lazygit, claude-code) live
 in `user/default.nix` (home-manager), shared by every host so they're easy to
 trim in one place; `allowUnfree` lives in `modules/base.nix`.
 
-## K3s + Argo CD bootstrap
+## K3s + Cilium + Argo CD bootstrap
 
 `hosts/homelab/k3s/default.nix`: `services.k3s` server with
-`--disable=traefik --disable=servicelb --write-kubeconfig-mode=0644` (argohome
-ships its own Traefik + MetalLB) and `--snapshotter=native` (overlayfs on
-bcachefs is unreliable for containerd's image layers; native trades disk
-space/pull time to avoid it). `KUBECONFIG` is exported system-wide; host
-tools: `kubectl`, `kubernetes-helm`, `argocd`, `k9s`.
+`--disable=traefik --disable=servicelb --write-kubeconfig-mode=0644
+--snapshotter=stargz --flannel-backend=none --disable-network-policy
+--disable-kube-proxy --cluster-cidr=10.42.0.0/16,fd42:42::/56
+--service-cidr=10.43.0.0/16,fd42:43::/112`. Flannel/kube-proxy/the bundled
+Traefik+servicelb are all disabled because Cilium (below) replaces every one
+of them - CNI, kube-proxy (eBPF), LoadBalancer, and ingress. Cluster/service
+CIDRs are dual-stack: IPv4 + an internal-only ULA range (RFC 4193) for pod/
+service IPv6 - unrelated to the LAN's real `/64`, which only backs
+LB-IPAM/Gateway external addresses (see argohome's `apps/infra/cilium-lb`).
+`KUBECONFIG` is exported system-wide; host tools: `kubectl`,
+`kubernetes-helm`, `argocd`, `k9s`.
+
+`hosts/homelab/k3s/cilium.nix`: `homelab-cilium-bootstrap.service` (oneshot,
+`RemainAfterExit`, after `k3s`, **before** `homelab-bootstrap`). Cilium *is*
+the CNI, so no pod - including Argo CD's own - can schedule until it's
+running; that's why this can't be GitOps-managed and must run first, unlike
+the LB-IPAM pool/L2Announcement/Gateway/HTTPRoutes, which stay in argohome
+like MetalLB/Traefik did. Idempotent (`kubectl apply` + `helm upgrade
+--install`): installs the Gateway API CRDs, then Cilium itself with
+`kubeProxyReplacement`, dual-stack, `l2announcements`, and `gatewayAPI` all
+enabled, pointed at this node's own API server (`k8sServiceHost`/`Port`,
+since kube-proxy's Service routing is gone).
 
 `hosts/homelab/k3s/argocd.nix`: `homelab-bootstrap.service` (oneshot,
-`RemainAfterExit`, after `k3s` + `network-online`). It is idempotent and
+`RemainAfterExit`, after `k3s` + `network-online` + `homelab-cilium-bootstrap`,
+and `requires` the latter - if Cilium bootstrap fails, this should too rather
+than proceed against a brokenly-networked cluster). It is idempotent and
 self-healing:
 
 1. If `/home/mt/.ssh/id_ed25519` is missing → log a hint and exit 0 (so the box
@@ -205,7 +226,10 @@ self-healing:
 5. Clone/pull argohome to `/var/lib/homelab/argohome` and
    `kubectl apply` `bootstrap/applicationset.yaml`.
 
-After that Argo CD pulls argohome itself (~3 min poll); no host cron.
+After that Argo CD pulls argohome itself (~3 min poll); no host cron. Argo
+CD's own LoadBalancer Service (and everything else's) sits Pending until
+argohome's `apps/infra/cilium-lb` syncs in and provides IPs - same
+bootstrapping order MetalLB used before it.
 
 ### Volume permissions
 

@@ -12,9 +12,9 @@ in
 {
   systemd.services.homelab-bootstrap = {
     description = "Bootstrap Argo CD and the argohome GitOps apps";
-    after = [ "k3s.service" "network-online.target" ];
+    after = [ "k3s.service" "network-online.target" "homelab-cilium-bootstrap.service" ];
     wants = [ "network-online.target" ];
-    requires = [ "k3s.service" ];
+    requires = [ "k3s.service" "homelab-cilium-bootstrap.service" ];
     wantedBy = [ "multi-user.target" ];
     path = with pkgs; [ kubectl kubernetes-helm git openssh ];
     environment = {
