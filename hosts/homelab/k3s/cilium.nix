@@ -34,8 +34,14 @@ in
       until kubectl get --raw=/readyz >/dev/null 2>&1; do sleep 5; done
 
       # Gateway API CRDs - Cilium's Gateway controller needs these to exist
-      # first; it doesn't bundle them itself.
-      kubectl apply -f https://github.com/kubernetes-sigs/gateway-api/releases/download/${gatewayApiVersion}/standard-install.yaml
+      # first; it doesn't bundle them itself. Must be the *experimental*
+      # channel: Cilium 1.19's operator hard-fails at startup without the
+      # TLSRoute CRD (gateway.networking.k8s.io/v1alpha2), which standard-
+      # install.yaml doesn't include, even though we don't use TLSRoute.
+      # --server-side is required too - Gateway API's CRDs are big enough
+      # that client-side apply's last-applied-configuration annotation blows
+      # past Kubernetes' annotation size limit.
+      kubectl apply --server-side --force-conflicts -f https://github.com/kubernetes-sigs/gateway-api/releases/download/${gatewayApiVersion}/experimental-install.yaml
 
       helm repo add --force-update cilium https://helm.cilium.io/
       helm repo update cilium
