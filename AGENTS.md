@@ -215,11 +215,13 @@ self-healing:
 1. If `/home/mt/.ssh/id_ed25519` is missing → log a hint and exit 0 (so the box
    boots; re-run with `systemctl restart homelab-bootstrap` after copying it).
 2. Wait for the API (`kubectl get --raw=/readyz`).
-3. Install Argo CD only if `deploy/argocd-server` doesn't exist yet —
-   `helm upgrade --install argocd argo/argo-cd -n core --create-namespace`
+3. Install Argo CD only if `deploy/infra-argocd-server` doesn't exist yet —
+   `helm upgrade --install infra-argocd argo/argo-cd -n infra --create-namespace`
    with `server.service.type=LoadBalancer` and `server.insecure=true`. Skipped
    once present so a re-run can't lose a server-side-apply ownership fight
-   with Argo CD's own controller.
+   with Argo CD's own controller. (Argo CD lives in `infra` — argohome's
+   `apps/core` and `apps/tailscale` were merged into `apps/infra`, one
+   namespace for everything except `media`.)
 4. Create the Argo CD repository Secret `repo-argohome` (label
    `argocd.argoproj.io/secret-type=repository`) from the SSH key —
    `url = git@github.com:tu-leminh/argohome.git`, no token.

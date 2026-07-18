@@ -45,12 +45,13 @@ in
       # then stalls (~56s) and fails EVERY nixos-rebuild. Skipping when already
       # present keeps this genuinely idempotent/safe-to-re-run.
       #
-      # The release is named core-argocd so this seed render is byte-identical
+      # The release is named infra-argocd so this seed render is byte-identical
       # to Argo CD's self-managed render: the platform-bootstrap ApplicationSet
-      # names this app {{path[1]}}-{{path.basename}} = core-argocd, and the
-      # argo-cd chart derives resource names AND the app.kubernetes.io/instance
-      # label from .Release.Name. Matching the name here means both renders
-      # agree on names and on instance=core-argocd, so Argo CD adopts the seed
+      # names this app {{path[1]}}-{{path.basename}} = infra-argocd (argohome's
+      # apps/core/argocd was merged into apps/infra/argocd), and the argo-cd
+      # chart derives resource names AND the app.kubernetes.io/instance label
+      # from .Release.Name. Matching the name here means both renders agree on
+      # names and on instance=infra-argocd, so Argo CD adopts the seed
       # resources in place with no immutable-selector conflict (a prior
       # fullnameOverride hack fixed names but left the instance label split,
       # which made the redis NetworkPolicy drop the controller's traffic).
@@ -59,22 +60,22 @@ in
       # Argo CD pods to be Ready would block the login prompt for minutes on
       # boot. helm applies all manifests (incl. CRDs) synchronously before
       # returning; pods come up asynchronously, which is what we want here.
-      if ! kubectl -n core get deploy core-argocd-server >/dev/null 2>&1; then
+      if ! kubectl -n infra get deploy infra-argocd-server >/dev/null 2>&1; then
         helm repo add --force-update argo https://argoproj.github.io/argo-helm
         helm repo update argo
-        helm upgrade --install core-argocd argo/argo-cd \
-          --namespace core --create-namespace \
+        helm upgrade --install infra-argocd argo/argo-cd \
+          --namespace infra --create-namespace \
           --set server.service.type=LoadBalancer \
           --set server.insecure=true
       fi
 
       # Argo CD repository credentials for the private repo (SSH deploy key).
-      kubectl -n core create secret generic repo-argohome \
+      kubectl -n infra create secret generic repo-argohome \
         --from-literal=type=git \
         --from-literal=url=${repoUrl} \
         --from-file=sshPrivateKey=${sshKey} \
         --dry-run=client -o yaml | kubectl apply -f -
-      kubectl -n core label secret repo-argohome \
+      kubectl -n infra label secret repo-argohome \
         argocd.argoproj.io/secret-type=repository --overwrite
 
       # Clone/refresh argohome and apply the App-of-Apps ApplicationSet.

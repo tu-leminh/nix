@@ -56,7 +56,7 @@ repo. Verify:
 
 ```
 systemctl status homelab-bootstrap
-kubectl -n core get applications
+kubectl -n infra get applications
 ```
 
 ## 6. Remote access (optional)
