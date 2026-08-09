@@ -27,7 +27,7 @@
 
   time.timeZone = "Asia/Ho_Chi_Minh";
 
-  environment.systemPackages = with pkgs; [ bcachefs-tools keyutils git vim btop nushell opencode];
+  environment.systemPackages = with pkgs; [ bcachefs-tools keyutils git vim btop nushell opencode herdr ];
 
   # Users
   users.users.root.initialPassword = " ";
