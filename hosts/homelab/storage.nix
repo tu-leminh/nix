@@ -91,6 +91,7 @@ in
       ];
       subvolumes = {
         "root".mountpoint = "/";
+        "var".mountpoint = "/var";
         "data/tier1".mountpoint = "/data/tier1";
         "data/tier2".mountpoint = "/data/tier2";
         "data/tier3".mountpoint = "/data/tier3";

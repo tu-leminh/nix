@@ -97,7 +97,7 @@ data across every device by free space instead of a fixed hot/cold split.
 Pool format args: `--metadata_target=ssd --replicas=2`.
 No erasure coding, encryption, or compression.
 
-Subvolumes → mounts: `root`→`/`, `data/tier1..3`→`/data/tier1..3`.
+Subvolumes → mounts: `root`→`/`, `var`→`/var`, `data/tier1..3`→`/data/tier1..3`.
 
 ### Per-directory redundancy
 
@@ -108,6 +108,19 @@ set-file-option`, inherited by newly written files:
 
 - `/data/tier1` → `--data_replicas=3 --erasure_code=0` (3-way mirror)
 - `/data/tier3` → `--data_replicas=1 --erasure_code=0`
+- `/var` → `--data_replicas=2 --foreground_target=ssd --erasure_code=0` —
+  covers the whole subtree: k3s's embedded SQLite datastore + containerd
+  layer extraction, journald, `/var/lib/homelab` — small latency-sensitive
+  random I/O that the pool-wide default would spread across the slow HDDs.
+  This supersedes the old per-dir `--foreground_target=ssd` lines for
+  `/var/lib/rancher/k3s` and `/var/lib/kubelet`.
+
+**Drift note:** the current install predates the `var` subvolume — `/var` is
+still a plain dir in the root subvolume there. Its options were applied once by
+hand (`bcachefs set-file-option --data_replicas=2 --foreground_target=ssd
+--erasure_code=0 /var`), so behavior matches; the subvolume layout is
+reconciled on the next reinstall (disko creates `var` from `storage.nix`).
+
 
 **Constraints / gotchas:**
 - **Never add `--casefold`** — casefolded dirents break overlayfs, which is
