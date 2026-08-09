@@ -58,6 +58,18 @@ in
         --set gatewayAPI.enabled=true \
         --set operator.replicas=1 \
         --set ipam.mode=kubernetes
+
+      # Widen the agent's endpoint-create API rate limiter. Defaults are
+      # 0.5/s, burst 4, 4 parallel, 15s max wait - a mass pod recreate after
+      # a reboot saturates that and everything 429s ("putEndpointIdTooMany-
+      # Requests"), turning a 2-minute recovery into hours. These cores are
+      # mostly idle, so give it wide headroom and let auto-adjust self-pace.
+      kubectl patch configmap cilium-config -n kube-system --type merge \
+        --patch '{"data":{"api-rate-limit":"endpoint-create=rate-limit:20/s,rate-burst:32,parallel-requests:16,min-parallel-requests:8,max-parallel-requests:32,max-wait-duration:300s,auto-adjust:true"}}'
+
+      # The agent reads its config only at startup - restart it so the new
+      # limits take effect.
+      kubectl rollout restart ds/cilium -n kube-system
     '';
   };
 }
