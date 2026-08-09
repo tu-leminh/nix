@@ -23,6 +23,11 @@
       # external addresses (see apps/infra/cilium-lb in argohome).
       "--cluster-cidr=10.42.0.0/16,fd42:42::/56"
       "--service-cidr=10.43.0.0/16,fd42:43::/112"
+      # Default kubelet eviction-hard is percent-based (nodefs<10%,
+      # imagefs<15%) - on this 5TB pool that reserves up to ~750GB just for
+      # eviction headroom. Pin the disk thresholds to a flat 10Gi instead;
+      # keep the other defaults (memory, inodes) as-is.
+      "--kubelet-arg=eviction-hard=memory.available<100Mi,nodefs.available<10Gi,nodefs.inodesFree<5%,imagefs.available<10Gi"
     ];
     # Let kubelet evict pods on reboot/shutdown instead of leaving containerd
     # sandboxes to be killed abruptly (which caused pods stuck
