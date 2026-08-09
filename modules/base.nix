@@ -27,7 +27,7 @@
 
   time.timeZone = "Asia/Ho_Chi_Minh";
 
-  environment.systemPackages = with pkgs; [ bcachefs-tools keyutils git vim btop nushell ];
+  environment.systemPackages = with pkgs; [ bcachefs-tools keyutils git vim btop nushell opencode];
 
   # Users
   users.users.root.initialPassword = " ";
@@ -38,6 +38,11 @@
     shell = pkgs.nushell;
   };
   systemd.tmpfiles.rules = [ "d /home/mt/.ssh 0700 mt users -" ];
+
+  # mt is the sole operator of this box - skip the sudo password prompt.
+  security.sudo.extraRules = [
+    { users = [ "mt" ]; commands = [ { command = "ALL"; options = [ "NOPASSWD" ]; } ]; }
+  ];
 
   # SSH server
   services.openssh = {
