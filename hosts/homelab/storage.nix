@@ -6,10 +6,14 @@
 # (per-directory tiering, SMART) lives in ./storage-services.nix, and both are
 # pulled into the host by nixos-install via ./default.nix.
 #
-# Disk tiers: ssd alone = foreground+promote, ssd+nvme ("ssd" group) =
-# metadata, hdd = background. ESP (/boot) on the NVMe. Pool default
-# replicas=2, no EC (covers / and tier2); per-directory overrides live in
-# ./storage-services.nix.
+# No foreground/background/promote targets - the 500GB ssd0 alone couldn't
+# absorb foreground writes for a 5TB pool (pinned it to 97% full while nvme0
+# sat at 68%), and bcachefs can't reconcile/move data to relieve a target
+# that's itself out of room. Only metadata_target=ssd remains (ssd+nvme
+# group), letting the allocator spread data across every device by free
+# space instead of a fixed hot/cold split. ESP (/boot) on the NVMe. Pool
+# default replicas=2, no EC (covers / and tier2); per-directory overrides
+# live in ./storage-services.nix.
 #
 # A bare attrset, not a `{ ... }:` module function: the disko CLI does
 # `import <file>` and only applies arguments if the result is a function, so a
@@ -82,9 +86,6 @@ in
       type = "bcachefs_filesystem";
       # Never add --casefold: it breaks overlayfs
       extraFormatArgs = [
-        "--foreground_target=ssd.ssd0"
-        "--promote_target=ssd.ssd0"
-        "--background_target=hdd"
         "--metadata_target=ssd"
         "--replicas=2"
       ];

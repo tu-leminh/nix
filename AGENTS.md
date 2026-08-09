@@ -85,18 +85,16 @@ One bcachefs filesystem (`pool`) spans all five devices, referenced by
 
 | Group | Device | Role |
 | --- | --- | --- |
-| `ssd.nvme0` | Crucial P3 2TB | ESP (`/boot`, FAT32 1G) + pool member, part of `ssd` group for `metadata_target` only — **not** `foreground_target`/`promote_target` |
-| `ssd.ssd0` | WD Blue 500GB | `foreground_target` + `promote_target` (device-specific) **and** part of `ssd` group for `metadata_target` |
-| `hdd` ×3 | 1TB + 500GB + 2TB | `background_target` |
+| `ssd.nvme0` | Crucial P3 2TB | ESP (`/boot`, FAT32 1G) + pool member, part of `ssd` group |
+| `ssd.ssd0` | WD Blue 500GB | pool member, part of `ssd` group |
+| `hdd` ×3 | 1TB + 500GB + 2TB | pool members |
 
 Device labels are dot-hierarchical (`ssd.ssd0`, `ssd.nvme0`); a target of
 `ssd` matches every label starting with `ssd.`, so `metadata_target=ssd`
-lands on both ssd and nvme, while `foreground_target=ssd.ssd0` and
-`promote_target=ssd.ssd0` are the full, unique label of the ssd device and
-so match only it.
+lands on both ssd and nvme. No other targets are set: the allocator spreads
+data across every device by free space instead of a fixed hot/cold split.
 
-Pool format args: `--foreground_target=ssd.ssd0 --promote_target=ssd.ssd0
---background_target=hdd --metadata_target=ssd --replicas=2`.
+Pool format args: `--metadata_target=ssd --replicas=2`.
 No erasure coding, encryption, or compression.
 
 Subvolumes → mounts: `root`→`/`, `data/tier1..3`→`/data/tier1..3`.
