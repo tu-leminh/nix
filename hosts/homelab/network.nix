@@ -19,8 +19,7 @@
     };
     ipv4 = {
       method = "manual"; # no DHCP
-      address1 = "192.168.1.100/24,192.168.1.1";
-      dns = "192.168.1.1;";
+      address1 = "10.0.0.100/16,10.0.0.1";
     };
     ipv6.method = "auto";
   };
