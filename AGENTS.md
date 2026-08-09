@@ -97,7 +97,9 @@ data across every device by free space instead of a fixed hot/cold split.
 Pool format args: `--metadata_target=ssd --replicas=2`.
 No erasure coding, encryption, or compression.
 
-Subvolumes → mounts: `root`→`/`, `var`→`/var`, `data/tier1..3`→`/data/tier1..3`.
+Subvolumes → mounts: `root`→`/`, `data/tier1..3`→`/data/tier1..3`.
+`/var` is a plain dir in the root subvolume (no var subvolume in the layout —
+its options are inode options, see below).
 
 ### Per-directory redundancy
 
@@ -113,13 +115,9 @@ set-file-option`, inherited by newly written files:
   layer extraction, journald, `/var/lib/homelab` — small latency-sensitive
   random I/O that the pool-wide default would spread across the slow HDDs.
   This supersedes the old per-dir `--foreground_target=ssd` lines for
-  `/var/lib/rancher/k3s` and `/var/lib/kubelet`.
-
-**Drift note:** the current install predates the `var` subvolume — `/var` is
-still a plain dir in the root subvolume there. Its options were applied once by
-hand (`bcachefs set-file-option --data_replicas=2 --foreground_target=ssd
---erasure_code=0 /var`), so behavior matches; the subvolume layout is
-reconciled on the next reinstall (disko creates `var` from `storage.nix`).
+  `/var/lib/rancher/k3s` and `/var/lib/kubelet`. `/var` is a plain dir in the
+  root subvolume (no subvolume in the layout), so this sets inode options on
+  the dir itself, inherited by newly written files below it.
 
 
 **Constraints / gotchas:**

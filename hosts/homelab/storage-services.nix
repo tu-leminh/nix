@@ -27,8 +27,9 @@
       # embedded SQLite datastore and containerd's overlayfs layer extraction
       # (containerd is embedded in k3s, no separate top-level dir), journald,
       # /var/lib/homelab - small, latency-sensitive random I/O, so the old
-      # per-dir k3s/kubelet lines are covered by this one. Works whether /var
-      # is a subvolume (fresh install, see storage.nix) or a plain dir.
+      # per-dir k3s/kubelet lines are covered by this one. /var is a plain dir
+      # in the root subvolume (no var subvolume in the layout), so this sets
+      # inode options on the dir itself.
       bcachefs set-file-option --data_replicas=2 --foreground_target=ssd --erasure_code=0 /var
       touch /var/lib/bcachefs-tiering.done
     '';
