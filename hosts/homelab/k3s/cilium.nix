@@ -12,7 +12,7 @@ let
   # This node's own static LAN IP (network.nix) - Cilium's agents need this to
   # reach the apiserver directly since kube-proxy (and its Service routing)
   # is disabled.
-  apiServerHost = "192.168.1.100";
+  apiServerHost = "10.0.0.100";
   apiServerPort = "6443";
 in
 {

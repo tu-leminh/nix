@@ -51,7 +51,7 @@ hosts/
                               fed to the disko CLI standalone during install
   homelab/storage-services.nix  first-boot per-directory redundancy and SMART monitoring
                               (the pkgs/NixOS-only storage bits); imported alongside storage.nix
-  homelab/network.nix        static enp6s0 (192.168.1.100)
+  homelab/network.nix        static enp6s0 (10.0.0.100/16)
   homelab/swap.nix           zram swap (raw NVMe swap partition lives in storage.nix)
   homelab/vscode-tunnel.nix  VS Code tunnel remote access (nix-ld)
   homelab/backup.nix         weekly rclone snapshot of /data/tier1+tier2 to Google Drive
@@ -154,13 +154,16 @@ Both units gate on `/root/.config/rclone/rclone.conf` existing
 ## Network
 
 `hosts/homelab/network.nix` sets a NetworkManager static profile on `enp6s0`:
-`192.168.1.100/24`, gateway + DNS `192.168.1.1`, `ipv4.method = manual` (no
+`10.0.0.100/16`, gateway + DNS `10.0.0.1`, `ipv4.method = manual` (no
 DHCP). WiFi and other links stay NM-managed.
 
-> `192.168.1.100` used to be the first IP of argohome's MetalLB pool
-> (`192.168.1.100-200`), overlapping the node's own address - the Cilium
-> LB-IPAM pool that replaced it (`apps/infra/cilium-lb`) starts at `.101`
-> instead.
+> The argohome Cilium LB-IPAM pool lives in a separate range
+> (`10.0.1.2-10.0.1.255`), so it never overlaps the node address. The router
+> forwards inbound 80/443 directly to the Gateway's LB IP (`10.0.1.2`), which
+> Cilium L2-announces; the Gateway (reverse proxy) lives on a virtual
+> LB-IPAM address, not the node IP. There is no node-side DNAT anymore: the
+> former `homelab-dnat` double-NAT broke the reply path (the LB answers with
+> `src 10.0.1.2` while the router's NAT expected replies from `10.0.0.100`).
 
 ## System
 
@@ -200,7 +203,7 @@ Traefik+servicelb are all disabled because Cilium (below) replaces every one
 of them - CNI, kube-proxy (eBPF), LoadBalancer, and ingress. Cluster/service
 CIDRs are dual-stack: IPv4 + an internal-only ULA range (RFC 4193) for pod/
 service IPv6 - unrelated to the LAN's real `/64`, which only backs
-LB-IPAM/Gateway external addresses (see argohome's `apps/infra/cilium-lb`).
+LB-IPAM/Gateway external addresses (see argohome's `apps/infra/network`).
 `KUBECONFIG` is exported system-wide; host tools: `kubectl`,
 `kubernetes-helm`, `argocd`, `k9s`.
 
@@ -209,7 +212,7 @@ LB-IPAM/Gateway external addresses (see argohome's `apps/infra/cilium-lb`).
 the CNI, so no pod - including Argo CD's own - can schedule until it's
 running; that's why this can't be GitOps-managed and must run first, unlike
 the LB-IPAM pool/L2Announcement/Gateway/HTTPRoutes, which stay in argohome
-like MetalLB/Traefik did. Idempotent (`kubectl apply` + `helm upgrade
+(`apps/infra/network`). Idempotent (`kubectl apply` + `helm upgrade
 --install`): installs the Gateway API CRDs, then Cilium itself with
 `kubeProxyReplacement`, dual-stack, `l2announcements`, and `gatewayAPI` all
 enabled, pointed at this node's own API server (`k8sServiceHost`/`Port`,
@@ -239,8 +242,11 @@ self-healing:
 
 After that Argo CD pulls argohome itself (~3 min poll); no host cron. Argo
 CD's own LoadBalancer Service (and everything else's) sits Pending until
-argohome's `apps/infra/cilium-lb` syncs in and provides IPs - same
-bootstrapping order MetalLB used before it.
+argohome's `apps/infra/network` syncs in and provides the `10.0.1.2-255` pool
+IPs. The router forwards inbound 80/443 to the Gateway's LB IP (`10.0.1.2`)
+so external traffic reaches Envoy; other inbound ports that were previously
+covered by the old blanket DMZ to `10.0.0.100` need their own router
+forwards (e.g. the q1/q2/q3 torrent NodePorts 31081-31083).
 
 ### Volume permissions
 

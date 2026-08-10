@@ -21,7 +21,8 @@
       bcachefs set-file-option --data_replicas=3 --erasure_code=0 /data/tier1
       bcachefs set-file-option --data_replicas=2 --erasure_code=0 /data/tier2
       bcachefs set-file-option --data_replicas=1 --erasure_code=0 /data/tier3
-      bcachefs set-file-option --data_replicas=1 --erasure_code=0 /nix/store
+      # nix store: same as /var - pin to SSDs so app and update reads never hit
+      # the slow HDDs (1x replicas, no target would spread it across all disks).
       # /var: pin replicas=2 + SSDs explicitly (pool default would spread it
       # across the slow HDDs). Inherited by everything below it - k3s's
       # embedded SQLite datastore and containerd's overlayfs layer extraction
@@ -31,6 +32,7 @@
       # in the root subvolume (no var subvolume in the layout), so this sets
       # inode options on the dir itself.
       bcachefs set-file-option --data_replicas=2 --foreground_target=ssd --erasure_code=0 /var
+      bcachefs set-file-option --data_replicas=2 --foreground_target=ssd --erasure_code=0 /nix
       touch /var/lib/bcachefs-tiering.done
     '';
   };
