@@ -1,6 +1,7 @@
 # nix
 
-Bcachefs installer ISO + a tiered 5-disk NixOS home-lab host (K3s + Argo CD).
+Bcachefs installer ISO + a tiered 5-disk NixOS home-lab host (K3s + Argo CD),
+plus a standalone home-manager setup for an Ubuntu work laptop.
 Architecture and design notes: see [AGENTS.md](AGENTS.md).
 
 ## 1. Build the installer ISO
@@ -29,7 +30,7 @@ Boot the USB first. This **erases all 5 disks** (wipes any existing OS):
 rm -rf /tmp/nix
 git clone https://github.com/tu-leminh/nix.git /tmp/nix
 sudo nix --extra-experimental-features 'nix-command flakes' run \
-  github:nix-community/disko/latest -- --mode disko /tmp/nix/hosts/homelab/storage.nix
+  github:nix-community/disko/latest -- --mode disko /tmp/nix/hosts/homelab/nixos/storage.nix
 sudo nixos-install --flake /tmp/nix#homelab
 reboot
 ```
@@ -70,7 +71,7 @@ code tunnel user login --provider github
 code tunnel --accept-server-license-terms
 ```
 
-See `hosts/homelab/vscode-tunnel.nix` for why `VSCODE_CLI_USE_FILE_KEYCHAIN`
+See `hosts/homelab/nixos/vscode-tunnel.nix` for why `VSCODE_CLI_USE_FILE_KEYCHAIN`
 matters on a headless boot.
 
 ## 7. Offsite backup (optional)
@@ -84,7 +85,7 @@ sudo rclone config
 ```
 
 Create a remote named **`gdrive`** (type `drive`) and complete the Google
-OAuth flow. See `hosts/homelab/backup.nix` for the schedule/retention knobs.
+OAuth flow. See `hosts/homelab/nixos/backup.nix` for the schedule/retention knobs.
 
 Trigger a backup on demand, outside the weekly schedule:
 
@@ -103,3 +104,39 @@ sudo systemctl start gdrive-restore@latest.service
 # or: sudo systemctl start gdrive-restore@20260709.service
 journalctl -u 'gdrive-restore@*' -e
 ```
+
+## Work laptop (Ubuntu)
+
+Standalone home-manager (no NixOS): nix is only a package manager + dotfile
+manager here. Mango, Noctalia, WezTerm, and all CLI tools come from nix;
+GNOME/GDM stays as the login manager and Mango is picked from it.
+
+1. Install nix (e.g. the Determinate Systems installer) on the laptop.
+2. Clone this repo to `~/nix`.
+3. Apply:
+
+   ```
+   home-manager switch --flake ~/nix#tu-le5@work-linux
+   ```
+
+4. The Mango session entry is generated declaratively by home-manager to
+   `~/.local/share/wayland-sessions/mango.desktop` (absolute `Exec`, no PATH
+   dependency). Log out; "Mango" appears at the GNOME login screen. GDM must
+   scan `~/.local/share` for this — if it doesn't show, add that dir to the
+   greeter's `XDG_DATA_DIRS`.
+
+## Desktop profile
+
+Mango, Noctalia, and WezTerm are separate shared capabilities under
+`modules/home/`, selected explicitly by each host. Mango starts Noctalia once; Alt+Space opens its launcher,
+Super+S opens the control center, and Super+Comma opens Settings.
+
+NixOS plumbing is split by capability: `modules/nixos/graphical.nix` supplies
+GDM, audio, graphics, Bluetooth, fonts, and UPower; `gnome.nix` and `mango.nix`
+enable their respective sessions. `hosts/homelab/nixos/gnome-policy.nix` adds
+the server's no-sleep and minimal-GNOME policy.
+
+The bar config (floating, CPU/mem, clock, media, etc.) is managed declaratively
+in `modules/home/noctalia.nix`. Noctalia Settings writes GUI overrides to
+`~/.local/state/noctalia/settings.toml`, which wins over the managed config and
+survives a reinstall only if copied by hand.

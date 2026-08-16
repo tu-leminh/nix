@@ -1,6 +1,6 @@
 
 # hand to the disko CLI during install:
-#   disko --mode disko /tmp/nix/hosts/homelab/storage.nix
+#   disko --mode disko /tmp/nix/hosts/homelab/nixos/storage.nix
 # It is deliberately free of `pkgs` and other NixOS options so disko can
 # evaluate it standalone — the runtime storage config that *does* need `pkgs`
 # (per-directory tiering, SMART) lives in ./storage-services.nix, and both are

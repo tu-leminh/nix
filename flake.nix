@@ -1,5 +1,5 @@
 {
-  description = "NixOS homelab + Ubuntu work-linux + macOS work-mac";
+  description = "NixOS homelab + Ubuntu work laptop (home-manager)";
 
   inputs = {
     nixpkgs.url = "github:NixOS/nixpkgs/nixos-unstable";
@@ -7,12 +7,12 @@
     disko.inputs.nixpkgs.follows = "nixpkgs";
     home-manager.url = "github:nix-community/home-manager";
     home-manager.inputs.nixpkgs.follows = "nixpkgs";
-    # darwin.url = "github:lnl7/nix-darwin";
-    # darwin.inputs.nixpkgs.follows = "nixpkgs";
+    noctalia.url = "github:noctalia-dev/noctalia";
+    noctalia.inputs.nixpkgs.follows = "nixpkgs";
   };
 
   outputs =
-    { self, nixpkgs, disko, home-manager }:
+    inputs@{ self, nixpkgs, disko, home-manager, noctalia, ... }:
     let
       system = "x86_64-linux";
       lib = nixpkgs.lib;
@@ -20,23 +20,25 @@
     {
       nixosConfigurations.homelab = lib.nixosSystem {
         inherit system;
+        specialArgs = { inherit inputs; };
         modules = [
           disko.nixosModules.disko
           home-manager.nixosModules.home-manager
-          ./hosts/homelab
+          ./hosts/homelab/nixos
         ];
       };
 
       # Bootable bcachefs installer image
       nixosConfigurations.installer = lib.nixosSystem {
         inherit system;
-        modules = [ ./hosts/installer ];
+        modules = [ ./hosts/homelab/nixos/installer.nix ];
       };
 
       # Ubuntu work laptop — standalone home-manager
-      homeConfigurations."mt@work-linux" = home-manager.lib.homeManagerConfiguration {
+      homeConfigurations."tu-le5@work-linux" = home-manager.lib.homeManagerConfiguration {
         pkgs = nixpkgs.legacyPackages.${system};
-        modules = [ ./hosts/work-linux/home.nix ];
+        extraSpecialArgs = { inherit inputs; };
+        modules = [ ./hosts/work-linux/home ];
       };
 
       # `nix build .#iso`

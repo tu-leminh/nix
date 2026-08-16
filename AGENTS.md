@@ -12,71 +12,57 @@ Technical reference for this flake. User-facing steps live in
 - Comments are short and explain *why*, not what — the Nix itself should read
   clearly enough that a longer, obvious block is preferred over a terse,
   cryptic one.
+- Shared configuration lives in `modules/`; hosts explicitly import each
+  capability. NixOS-only display, hardware, and server policy remain host-local.
 
 ## Purpose
 
-One flake, four outputs:
+One flake, three outputs:
 
 - **`nixosConfigurations.installer`** — a minimal, bcachefs-enabled
   installation ISO.
 - **`nixosConfigurations.homelab`** — the installed machine: a single
-  bcachefs pool across 5 disks, GNOME + Sway, and a single-node K3s cluster
+  bcachefs pool across 5 disks, GNOME + Mango + Noctalia, and a single-node K3s cluster
   that bootstraps the private
   [argohome](https://github.com/tu-leminh/argohome) Argo CD GitOps stack.
-- **`homeConfigurations."mt@work-linux"`** — standalone home-manager (no
-  NixOS) for an Ubuntu work laptop: same user packages/dotfiles as homelab,
-  no system-level config.
-- **`hosts/work-mac`** — empty placeholder for a future nix-darwin machine;
-  not wired into `flake.nix` yet.
+- **`homeConfigurations."tu-le5@work-linux"`** — standalone home-manager (no
+  NixOS) for an Ubuntu work laptop (nix as package manager + dotfiles): same
+  shared user packages/dotfiles as homelab, no system-level config.
 
 ## Inputs / outputs
 
-- Inputs: `nixpkgs` (nixos-unstable), `disko`, `home-manager`.
+- Inputs: `nixpkgs` (nixos-unstable), `disko`, `home-manager`, `noctalia`
+  (official Noctalia v5 flake, `inputs.nixpkgs.follows = "nixpkgs"`; its Home
+  Manager module drives `modules/home/noctalia.nix`).
 - `nixosConfigurations.installer` → `.#iso` = `…build.isoImage`.
 - `nixosConfigurations.homelab` (x86_64-linux, `stateVersion = "26.11"`).
-- `homeConfigurations."mt@work-linux"` (x86_64-linux).
+- `homeConfigurations."tu-le5@work-linux"` (x86_64-linux).
 
 ## Layout
 
-`hosts/` holds everything unique to one machine; `modules/` holds host-agnostic
-NixOS capabilities; `user/` holds the home-manager config shared by every
-machine (system or standalone). Unlike a generate-from-folder setup, each
-output in `flake.nix` is listed explicitly — adding a host means adding both
-the folder *and* a `flake.nix` entry.
+`hosts/` holds machine facts and `modules/` holds reusable NixOS and
+Home Manager capabilities. Each host has only the applicable `nixos/` and
+`home/` entrypoints. Outputs remain explicit in `flake.nix`.
 
 ```
 hosts/
-  homelab/default.nix        imports modules + host nix files; hostname, stateVersion
-  homelab/storage.nix        the 5-disk bcachefs pool layout (disko.devices only, no pkgs);
-                              fed to the disko CLI standalone during install
-  homelab/storage-services.nix  first-boot per-directory redundancy and SMART monitoring
-                              (the pkgs/NixOS-only storage bits); imported alongside storage.nix
-  homelab/network.nix        static enp6s0 (10.0.0.100/16)
-  homelab/swap.nix           zram swap (raw NVMe swap partition lives in storage.nix)
-  homelab/vscode-tunnel.nix  VS Code tunnel remote access (nix-ld)
-  homelab/backup.nix         weekly rclone snapshot of /data/tier1+tier2 to Google Drive
-  homelab/k3s/default.nix    k3s server + kube tooling; imports cilium.nix + argocd.nix
-  homelab/k3s/cilium.nix     homelab-cilium-bootstrap service (Cilium CNI + Gateway API CRDs)
-  homelab/k3s/argocd.nix     homelab-bootstrap service (Argo CD + argohome)
-  installer/default.nix      standalone installer ISO (installation-cd-graphical-gnome + bcachefs)
-  work-linux/home.nix        standalone home-manager; imports ../../user/default.nix
-  work-mac/default.nix       empty placeholder, not wired into flake.nix
+  homelab/nixos/default.nix  installed host composition; hostname and stateVersion
+  homelab/nixos/installer.nix  homelab's bcachefs installation ISO
+  homelab/nixos/storage.nix  standalone disko layout for the 5-disk pool
+  homelab/nixos/k3s/         homelab-only K3s, Cilium, and Argo CD bootstrap
+  homelab/home/default.nix   mt identity and selected shared home capabilities
+  work-linux/home/default.nix  standalone Home Manager config for tu-le5
 modules/
-  base.nix                   bootloader, NetworkManager, firewall off, timezone, base pkgs, users, ssh
-  desktop.nix                GDM + GNOME + Sway + PipeWire + Sway UI toolkit; server no-sleep policy
-  home.nix                   wires home-manager into NixOS; home-manager.users.mt = ../user/default.nix
-user/
-  default.nix                mt's home-manager config: nushell, git, dev tools/apps (shared by every host)
+  nixos/                     base, graphical, GNOME, Mango, SSH, Home Manager integration
+  home/                      base CLI tools plus Mango, Noctalia, and WezTerm capabilities
 ```
 
 ### Adding a machine
 
-Create `hosts/<name>/default.nix` (NixOS) or `hosts/<name>/home.nix`
-(standalone home-manager) importing `../../modules/base.nix` plus whichever
-capability modules apply, set `networking.hostName` and
-`system.stateVersion`, and add per-host disk/network files. Then add the
-matching output in `flake.nix` — it is not generated automatically. Keep
-`modules/` free of host assumptions (IPs, disk ids, hostname).
+Create `hosts/<name>/nixos/default.nix` and/or `hosts/<name>/home/default.nix`,
+import the selected capability modules, then add the explicit output in
+`flake.nix`. Keep machine facts—identity, disks, IPs, hostname, and special
+hardware—under `hosts/`.
 
 ## Storage
 
@@ -128,11 +114,11 @@ set-file-option`, inherited by newly written files:
   stripe RMW was a big source of I/O stalls). Plain replication only now.
 - `replicas=3` over 3 HDDs is 3-way mirroring — tolerates 2 device failures at
   3× space cost.
-- Changing disks = edit `by-id` paths + labels in `hosts/homelab/storage.nix`.
+- Changing disks = edit `by-id` paths + labels in `hosts/homelab/nixos/storage.nix`.
 
 ## Backup
 
-`hosts/homelab/backup.nix`: `gdrive-backup.service` + matching `.timer` take
+`hosts/homelab/nixos/backup.nix`: `gdrive-backup.service` + matching `.timer` take
 a weekly (Sun 03:00) snapshot of `/data/tier1` and `/data/tier2` to Google
 Drive via `rclone`. Each source path is mirrored as-is (not collapsed to a
 basename) under a dated folder, e.g. `/data/tier1` →
@@ -153,7 +139,7 @@ Both units gate on `/root/.config/rclone/rclone.conf` existing
 
 ## Network
 
-`hosts/homelab/network.nix` sets a NetworkManager static profile on `enp6s0`:
+`hosts/homelab/nixos/network.nix` sets a NetworkManager static profile on `enp6s0`:
 `10.0.0.100/16`, gateway + DNS `10.0.0.1`, `ipv4.method = manual` (no
 DHCP). WiFi and other links stay NM-managed.
 
@@ -168,7 +154,7 @@ DHCP). WiFi and other links stay NM-managed.
 ## System
 
 - systemd-boot + EFI; `boot.supportedFilesystems = [ "bcachefs" ]` on
-  `linuxPackages_latest` (base.nix) — bcachefs is pre-stable and its on-disk
+  `linuxPackages_latest` (homelab's `nixos/default.nix`) — bcachefs is pre-stable and its on-disk
   format tracks the kernel, so the installed system must run the same recent
   kernel as the installer that formatted the pool, or `/` won't mount.
 - `hardware.enableRedistributableFirmware` on — amdgpu (GPU/Vulkan), Intel
@@ -181,20 +167,33 @@ DHCP). WiFi and other links stay NM-managed.
 
 ## Desktop
 
-GDM offers both GNOME and Sway (Wayland) at login. PipeWire (alsa+pulse),
-`hardware.graphics`, Bluetooth (`hardware.bluetooth`, power-on-boot), fonts, and
-a small Sway toolkit (foot/wofi/waybar).
-Because this box is a server, `desktop.nix` disables all auto-sleep: GDM
-`autoSuspend = false`, the systemd sleep/suspend/hibernate/hybrid-sleep targets
-are off, and a dconf profile sets GNOME's idle power actions to "nothing".
+GDM offers both GNOME and Mango (Wayland) at login. The reusable NixOS
+capabilities are split into `modules/nixos/graphical.nix`, `gnome.nix`, and
+`mango.nix`, so each can be selected independently.
 
-User apps and dev tools (wezterm, firefox, neovim, lazygit, claude-code) live
-in `user/default.nix` (home-manager), shared by every host so they're easy to
-trim in one place; `allowUnfree` lives in `modules/base.nix`.
+Mango, Noctalia, and WezTerm are separate Home Manager capabilities under
+`modules/home/`, selected by each host. Mango starts Noctalia with `exec-once=noctalia`; its launcher,
+control center, Settings, volume, mute, and brightness bindings use
+`noctalia msg …`. Waybar and Fuzzel are not configured.
+
+Only the GDM registration differs by host: NixOS uses
+`services.displayManager.sessionPackages`, while the Ubuntu laptop uses a
+user-level `.desktop` file with an absolute `Exec`. The homelab's
+`hosts/homelab/nixos/gnome-policy.nix` owns server-only GNOME policy: no sleep or idle
+actions and no unneeded GNOME background services.
+
+Noctalia's managed `~/.config/noctalia/config.toml` (the bar layout and
+widgets) lives in `modules/home/noctalia.nix`. The GUI's
+`~/.local/state/noctalia/settings.toml` overrides are imperative state, not in
+the flake.
+
+CLI/TUI tools (neovim, lazygit, superfile, claude-code, codex, antigravity,
+opencode, btop, kubectl, k9s, helm, argocd, herdr) and chrome live in
+`modules/home/base.nix`; `allowUnfree` lives in `modules/nixos/base.nix`.
 
 ## K3s + Cilium + Argo CD bootstrap
 
-`hosts/homelab/k3s/default.nix`: `services.k3s` server with
+`hosts/homelab/nixos/k3s/default.nix`: `services.k3s` server with
 `--disable=traefik --disable=servicelb --write-kubeconfig-mode=0644
 --snapshotter=stargz --flannel-backend=none --disable-network-policy
 --disable-kube-proxy --cluster-cidr=10.42.0.0/16,fd42:42::/56
@@ -207,7 +206,7 @@ LB-IPAM/Gateway external addresses (see argohome's `apps/infra/network`).
 `KUBECONFIG` is exported system-wide; host tools: `kubectl`,
 `kubernetes-helm`, `argocd`, `k9s`.
 
-`hosts/homelab/k3s/cilium.nix`: `homelab-cilium-bootstrap.service` (oneshot,
+`hosts/homelab/nixos/k3s/cilium.nix`: `homelab-cilium-bootstrap.service` (oneshot,
 `RemainAfterExit`, after `k3s`, **before** `homelab-bootstrap`). Cilium *is*
 the CNI, so no pod - including Argo CD's own - can schedule until it's
 running; that's why this can't be GitOps-managed and must run first, unlike
@@ -218,7 +217,7 @@ the LB-IPAM pool/L2Announcement/Gateway/HTTPRoutes, which stay in argohome
 enabled, pointed at this node's own API server (`k8sServiceHost`/`Port`,
 since kube-proxy's Service routing is gone).
 
-`hosts/homelab/k3s/argocd.nix`: `homelab-bootstrap.service` (oneshot,
+`hosts/homelab/nixos/k3s/argocd.nix`: `homelab-bootstrap.service` (oneshot,
 `RemainAfterExit`, after `k3s` + `network-online` + `homelab-cilium-bootstrap`,
 and `requires` the latter - if Cilium bootstrap fails, this should too rather
 than proceed against a brokenly-networked cluster). It is idempotent and
@@ -287,4 +286,5 @@ reinstall; re-do each once.
 nix eval .#nixosConfigurations.homelab.config.system.build.toplevel.drvPath
 nix eval .#nixosConfigurations.installer.config.system.build.isoImage.drvPath
 nix build .#iso
+nix build .#homeConfigurations."tu-le5@work-linux".activationPackage
 ```

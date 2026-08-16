@@ -19,6 +19,7 @@
       vulkan-loader     # libvulkan loader
       ocl-icd           # OpenCL loader
       mesa.opencl       # Mesa/Rusticl OpenCL, useful for tone mapping fallback
+      networkmanager-openvpn
     ];
   };
 }

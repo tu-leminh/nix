@@ -13,6 +13,19 @@
   # 10.0.0.100 (breaking k3s's --node-ip and the Cilium LB pool).
   networking.networkmanager.settings.main.no-auto-default = "enp6s0";
 
+  # AdGuard default server (blocks ads/trackers) via systemd-resolved + DoT.
+  # The lan profile sets no DNS, so resolved's global servers apply; the
+  # fallbacks are used only if every AdGuard server is unreachable.
+  networking.networkmanager.dns = "systemd-resolved";
+  services.resolved = {
+    enable = true;
+    settings.Resolve = {
+      DNS = [ "94.140.14.14" "94.140.15.15" "2a10:50c0::ad1:ff" "2a10:50c0::ad2:ff" ];
+      FallbackDNS = [ "1.1.1.1" "8.8.8.8" ];
+      DNSOverTLS = "yes";
+    };
+  };
+
   networking.networkmanager.ensureProfiles.profiles.lan = {
     connection = {
       id = "lan";
