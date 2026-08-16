@@ -39,6 +39,7 @@ in
 
       widget = {
         media.hide_when_no_media = true;
+        workspaces.style = "minimal";
         mangowm_keymode = { type = "gambled23/mangowm-keymode:mangowm-keymode"; };
         nix_monitor = { type = "avivbintangaringga/nix-monitor:nix-monitor"; };
         mango_layouts = { type = "ezequiel/mango_layouts:btn"; };
