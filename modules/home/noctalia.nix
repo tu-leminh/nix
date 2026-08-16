@@ -2,7 +2,13 @@
 # (github:noctalia-dev/noctalia). The module installs the package and writes
 # ~/.config/noctalia/config.toml; GUI tweaks still land in the app-managed
 # ~/.local/state/noctalia/settings.toml, which wins over this file.
-{ inputs, ... }:
+{ inputs, pkgs, ... }:
+let
+  wallpaper = pkgs.fetchurl {
+    url = "https://raw.githubusercontent.com/linuxdotexe/nordic-wallpapers/master/wallpapers/ign_unsplash19.png";
+    sha256 = "sha256-rBhO/VsZzcs5xhlwJhGWa5UXJeIVszwh/KD/sJRrfQE=";
+  };
+in
 {
   imports = [ inputs.noctalia.homeModules.default ];
 
@@ -16,17 +22,35 @@
         builtin = "Nord";
       };
 
+      wallpaper = {
+        enabled = true;
+        default.path = "${wallpaper}";
+      };
+
       bar.default = {
         position = "top";
         concave_edge_corners = false;
         margin_ends = 10;
         capsule = true;
-        start = [ "workspaces" "active_window" "media" ];
+        start = [ "mangowm_keymode" "mango_layouts" "workspaces" "active_window" "media" ];
         center = [ "clock" ];
-        end = [ "tray" "notifications" "clipboard" "network" "bluetooth" "volume" "brightness" "battery" "session" ];
+        end = [ "tray" "notifications" "clipboard" "network" "bluetooth" "volume" "brightness" "battery" "session" "nix_monitor" ];
       };
 
-      widget.media.hide_when_no_media = true;
+      widget = {
+        media.hide_when_no_media = true;
+        mangowm_keymode = { type = "gambled23/mangowm-keymode:mangowm-keymode"; };
+        nix_monitor = { type = "avivbintangaringga/nix-monitor:nix-monitor"; };
+        mango_layouts = { type = "ezequiel/mango_layouts:btn"; };
+      };
+
+      plugins = {
+        enabled = [
+          "ezequiel/mango_layouts"
+          "gambled23/mangowm-keymode"
+          "avivbintangaringga/nix-monitor"
+        ];
+      };
     };
   };
 }

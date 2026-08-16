@@ -23,6 +23,9 @@
     argocd
     herdr
 
+    # Noctalia plugin deps
+    jq
+
     # Browsers
     google-chrome
   ];
