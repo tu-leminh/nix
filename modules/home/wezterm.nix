@@ -10,6 +10,7 @@ in
     return {
         font_size = 12.0,
         color_scheme = "nord",
+        default_prog = { "nu" },
         enable_tab_bar = true,
         front_end = "Software",
     }
