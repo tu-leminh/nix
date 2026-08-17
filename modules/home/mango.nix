@@ -8,7 +8,7 @@ in
   home.file.".config/mango/config.conf".text = ''
 # More option see https://github.com/DreamMaoMao/mango/wiki/
 # Window effect
-blur = 0
+blur = 1
 blur_layer = 0
 blur_optimized = 1
 blur_params_num_passes = 2
@@ -16,15 +16,15 @@ blur_params_radius = 5
 blur_params_noise = 0.02
 blur_params_brightness = 0.9
 blur_params_contrast = 0.9
-blur_params_saturation = 1.2
-shadows = 0
+blur_params_saturation = 1.0
+shadows = 1
 layer_shadows = 0
-shadow_only_floating = 1
-shadows_size = 10
-shadows_blur = 15
-shadows_position_x = 0
-shadows_position_y = 0
-shadowscolor = 0x2e3440ff
+shadow_only_floating = 0
+shadows_size = 4
+shadows_blur = 12
+shadows_position_x = 2
+shadows_position_y = 2
+shadowscolor = 0x000000ff
 border_radius = 2
 no_radius_when_single = 1
 focused_opacity = 1.0
@@ -32,7 +32,7 @@ unfocused_opacity = 1.0
 # Animation Configuration(support type:zoom,slide)
 # tag_animation_direction: 1-horizontal,0-vertical
 animations = 0
-layer_animations = 1
+layer_animations = 0
 animation_type_open = slide
 animation_type_close = slide
 animation_fade_in = 1
@@ -150,10 +150,19 @@ tagrule = id:9,layout_name:tile
 # reload config
 bind = SUPER,r,reload_config
 # menu and terminal
-bind = Alt,space,spawn,noctalia msg panel-toggle launcher
+bind = SUPER,space,spawn,noctalia msg panel-toggle launcher
 bind = Alt,Return,spawn,wezterm start
 bind = SUPER,s,spawn,noctalia msg panel-toggle control-center
 bind = SUPER,comma,spawn,noctalia msg settings-toggle
+# Noctalia screenshot and session actions
+bind = SUPER+SHIFT,S,spawn,noctalia msg screenshot-region
+bind = SUPER,L,spawn,noctalia msg session lock
+# media keys
+bind = NONE,XF86AudioRaiseVolume,spawn,noctalia msg volume-up
+bind = NONE,XF86AudioLowerVolume,spawn,noctalia msg volume-down
+bind = NONE,XF86AudioMute,spawn,noctalia msg volume-mute
+bind = NONE,XF86MonBrightnessUp,spawn,noctalia msg brightness-up
+bind = NONE,XF86MonBrightnessDown,spawn,noctalia msg brightness-down
 # exit
 bind = SUPER,m,quit
 bind = ALT,q,killclient,

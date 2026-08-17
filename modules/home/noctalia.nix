@@ -34,9 +34,24 @@ in
         concave_edge_corners = false;
         margin_ends = 10;
         capsule = true;
+        shadow = false;
+        contact_shadow = false;
         start = [ "mangowm_keymode" "mango_layouts" "workspaces" "active_window" "media" ];
         center = [ "clock" ];
         end = [ "tray" "notifications" "clipboard" "network" "bluetooth" "volume" "brightness" "battery" "session" "nix_monitor" ];
+      };
+
+      dock.shadow = false;
+
+      lockscreen.enabled = true;
+
+      shell = {
+        clipboard_enabled = true;
+        panel.shadow = false;
+        screenshot = {
+          save_to_file = true;
+          copy_to_clipboard = true;
+        };
       };
 
       widget = {

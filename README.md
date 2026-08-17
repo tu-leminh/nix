@@ -138,8 +138,9 @@ GNOME/GDM stays as the login manager and Mango is picked from it.
 ## Desktop profile
 
 Mango, Noctalia, and WezTerm are separate shared capabilities under
-`modules/home/`, selected explicitly by each host. Mango starts Noctalia once; Alt+Space opens its launcher,
-Super+S opens the control center, and Super+Comma opens Settings.
+`modules/home/`, selected explicitly by each host. Mango starts Noctalia once; Super+Space opens its launcher,
+Super+S opens the control center, Super+Comma opens Settings,
+Super+Shift+S starts a region screenshot, and Super+L locks the session.
 
 NixOS plumbing is split by capability: `modules/nixos/graphical.nix` supplies
 GDM, audio, graphics, Bluetooth, fonts, and UPower; `gnome.nix` and `mango.nix`
