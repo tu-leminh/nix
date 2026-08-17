@@ -68,7 +68,7 @@ new_is_master = 1
 default_mfact = 0.55
 default_nmaster = 1
 tag_num = 9
-smartgaps = 1
+smartgaps = 0
 # Dwindle Layout Setting
 dwindle_smart_split = 0
 dwindle_drop_simple_split = 1
