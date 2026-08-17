@@ -9,8 +9,9 @@ in
     local wezterm = require("wezterm")
     return {
         font_size = 12.0,
-        color_scheme = "Catppuccin Mocha",
-        enable_tab_bar = false,
+        color_scheme = "nord",
+        enable_tab_bar = true,
+        front_end = "Software",
     }
   '';
 }
