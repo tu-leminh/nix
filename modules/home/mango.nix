@@ -151,7 +151,7 @@ tagrule = id:9,layout_name:tile
 bind = SUPER,r,reload_config
 # menu and terminal
 bind = Alt,space,spawn,noctalia msg panel-toggle launcher
-bind = Alt,Return,spawn,wezterm
+bind = Alt,Return,spawn,wezterm start -- nu
 bind = SUPER,s,spawn,noctalia msg panel-toggle control-center
 bind = SUPER,comma,spawn,noctalia msg settings-toggle
 # exit
