@@ -2,8 +2,9 @@
 # (github:noctalia-dev/noctalia). The module installs the package and writes
 # ~/.config/noctalia/config.toml; GUI tweaks still land in the app-managed
 # ~/.local/state/noctalia/settings.toml, which wins over this file.
-{ inputs, pkgs, ... }:
+{ config, inputs, pkgs, ... }:
 let
+  noctaliaPackage = config._module.args.noctaliaPackage or pkgs.noctalia;
   wallpaper = pkgs.fetchurl {
     url = "https://raw.githubusercontent.com/linuxdotexe/nordic-wallpapers/master/wallpapers/ign_unsplash19.png";
     sha256 = "sha256-rBhO/VsZzcs5xhlwJhGWa5UXJeIVszwh/KD/sJRrfQE=";
@@ -14,6 +15,7 @@ in
 
   programs.noctalia = {
     enable = true;
+    package = noctaliaPackage;
 
     settings = {
       theme = {

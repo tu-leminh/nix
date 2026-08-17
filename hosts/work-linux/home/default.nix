@@ -1,6 +1,13 @@
 # Ubuntu work laptop — standalone home-manager. GNOME/GDM stays system-managed;
 # this host selects its shared user capabilities and supplies local identity.
-{ config, ... }:
+{ config, inputs, pkgs, ... }:
+let
+  nixGL = inputs.nixgl.packages.${pkgs.stdenv.hostPlatform.system}.nixGLIntel;
+  wrapWithNixGL = name: package:
+    pkgs.writeShellScriptBin name ''
+      exec ${nixGL}/bin/nixGLIntel ${package}/bin/${name} "$@"
+    '';
+in
 {
   imports = [
     ../../../modules/home/base.nix
@@ -13,8 +20,15 @@
   home.homeDirectory = "/home/tu-le5";
   home.stateVersion = "26.11";
 
-  # GDM runs the session via the .desktop `Exec=`. Use an absolute path so it
-  # doesn't depend on PATH — bare `Exec=mango` failed on the homelab's GDM.
+  # NixGL supplies the Mesa/EGL runtime required by Nix GUI apps on Ubuntu.
+  _module.args = {
+    mangoPackage = wrapWithNixGL "mango" pkgs.mango;
+    noctaliaPackage = wrapWithNixGL "noctalia" pkgs.noctalia;
+    weztermPackage = wrapWithNixGL "wezterm" pkgs.wezterm;
+  };
+
+  # GDM reads the system-wide copy installed during Ubuntu setup. Keep its
+  # source here so it has an absolute Exec path and is easy to refresh.
   home.file.".local/share/wayland-sessions/mango.desktop".text = ''
     [Desktop Entry]
     Name=Mango

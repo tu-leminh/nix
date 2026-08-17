@@ -177,8 +177,11 @@ control center, Settings, volume, mute, and brightness bindings use
 `noctalia msg …`. Waybar and Fuzzel are not configured.
 
 Only the GDM registration differs by host: NixOS uses
-`services.displayManager.sessionPackages`, while the Ubuntu laptop uses a
-user-level `.desktop` file with an absolute `Exec`. The homelab's
+`services.displayManager.sessionPackages`, while the Ubuntu laptop installs a
+one-time system-wide copy of its Home Manager-generated `.desktop` file with
+an absolute `Exec` (see the Ubuntu setup steps in `README.md`). Its Mango,
+Noctalia, and WezTerm packages are wrapped with NixGL for a compatible
+Mesa/EGL runtime. The homelab's
 `hosts/homelab/nixos/gnome-policy.nix` owns server-only GNOME policy: no sleep or idle
 actions and no unneeded GNOME background services.
 

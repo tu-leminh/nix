@@ -1,6 +1,9 @@
-{ pkgs, ... }:
+{ config, pkgs, ... }:
+let
+  mangoPackage = config._module.args.mangoPackage or pkgs.mango;
+in
 {
-  home.packages = [ pkgs.mango ];
+  home.packages = [ mangoPackage ];
 
   home.file.".config/mango/config.conf".text = ''
 # More option see https://github.com/DreamMaoMao/mango/wiki/

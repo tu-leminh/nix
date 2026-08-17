@@ -119,11 +119,21 @@ GNOME/GDM stays as the login manager and Mango is picked from it.
    home-manager switch --flake ~/nix#tu-le5@work-linux
    ```
 
-4. The Mango session entry is generated declaratively by home-manager to
-   `~/.local/share/wayland-sessions/mango.desktop` (absolute `Exec`, no PATH
-   dependency). Log out; "Mango" appears at the GNOME login screen. GDM must
-   scan `~/.local/share` for this — if it doesn't show, add that dir to the
-   greeter's `XDG_DATA_DIRS`.
+4. Register Mango with GDM. This is needed once after a fresh Ubuntu install:
+
+   ```
+   sudo install -Dm644 ~/.local/share/wayland-sessions/mango.desktop \
+     /usr/share/wayland-sessions/mango.desktop
+   ```
+
+   GDM reads its session list before login, so it does not discover the
+   Home Manager-managed user entry. The installed file uses the stable
+   `~/.nix-profile/bin/mango` path, so later `home-manager switch` runs keep
+   the session working. Log out and choose "Mango" from GDM's session menu.
+
+   Mango, Noctalia, and WezTerm are wrapped with NixGL on this Intel Ubuntu
+   laptop, so they receive a compatible Mesa/EGL runtime. No extra graphics
+   setup is required after `home-manager switch`.
 
 ## Desktop profile
 

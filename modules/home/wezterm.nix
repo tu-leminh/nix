@@ -1,6 +1,9 @@
-{ pkgs, ... }:
+{ config, pkgs, ... }:
+let
+  weztermPackage = config._module.args.weztermPackage or pkgs.wezterm;
+in
 {
-  home.packages = [ pkgs.wezterm ];
+  home.packages = [ weztermPackage ];
 
   home.file.".config/wezterm/wezterm.lua".text = ''
     local wezterm = require("wezterm")
