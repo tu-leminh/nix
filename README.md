@@ -119,7 +119,20 @@ GNOME/GDM stays as the login manager and Mango is picked from it.
    home-manager switch --flake ~/nix#tu-le5@work-linux
    ```
 
-4. Register Mango with GDM. This is needed once after a fresh Ubuntu install:
+4. Make Ubuntu's graphics drivers available to Nix GUI apps. The switch output
+   prints a command like the following whenever this needs installing or
+   refreshing; run that exact command with sudo:
+
+   ```
+   sudo /nix/store/<hash>-non-nixos-gpu/bin/non-nixos-gpu-setup
+   ```
+
+   It installs a small tmpfiles rule that recreates `/run/opengl-driver` at
+   boot. This is required once after a fresh Ubuntu install and again only
+   when a later `home-manager switch` reports that the GPU drivers need an
+   update.
+
+5. Register Mango with GDM. This is needed once after a fresh Ubuntu install:
 
    ```
    sudo install -Dm644 ~/.local/share/wayland-sessions/mango.desktop \
@@ -131,9 +144,8 @@ GNOME/GDM stays as the login manager and Mango is picked from it.
    `~/.nix-profile/bin/mango` path, so later `home-manager switch` runs keep
    the session working. Log out and choose "Mango" from GDM's session menu.
 
-   Mango, Noctalia, and WezTerm are wrapped with NixGL on this Intel Ubuntu
-   laptop, so they receive a compatible Mesa/EGL runtime. No extra graphics
-   setup is required after `home-manager switch`.
+   The host GPU setup above makes Ubuntu's Mesa/EGL runtime available to every
+   Nix GUI app, including Mango, Noctalia, and Flutter applications.
 
 ## Desktop profile
 

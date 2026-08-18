@@ -1,13 +1,6 @@
 # Ubuntu work laptop — standalone home-manager. GNOME/GDM stays system-managed;
 # this host selects its shared user capabilities and supplies local identity.
-{ config, inputs, pkgs, ... }:
-let
-  nixGL = inputs.nixgl.packages.${pkgs.stdenv.hostPlatform.system}.nixGLIntel;
-  wrapWithNixGL = name: package:
-    pkgs.writeShellScriptBin name ''
-      exec ${nixGL}/bin/nixGLIntel ${package}/bin/${name} "$@"
-    '';
-in
+{ config, ... }:
 {
   imports = [
     ../../../modules/home/base.nix
@@ -20,12 +13,8 @@ in
   home.homeDirectory = "/home/tu-le5";
   home.stateVersion = "26.11";
 
-  # NixGL supplies the Mesa/EGL runtime required by Nix GUI apps on Ubuntu.
-  _module.args = {
-    mangoPackage = wrapWithNixGL "mango" pkgs.mango;
-    noctaliaPackage = wrapWithNixGL "noctalia" pkgs.noctalia;
-    weztermPackage = wrapWithNixGL "wezterm" pkgs.wezterm;
-  };
+  # Make Ubuntu's Mesa/EGL drivers available to every Nix GUI app.
+  targets.genericLinux.enable = true;
 
   # GDM reads the system-wide copy installed during Ubuntu setup. Keep its
   # source here so it has an absolute Exec path and is easy to refresh.
