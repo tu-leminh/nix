@@ -60,19 +60,91 @@ systemctl status homelab-bootstrap
 kubectl -n infra get applications
 ```
 
-## 6. Remote access (optional)
+## 6. VS Code Remote Tunnel (optional)
 
-The box also runs a VS Code tunnel for remote access. First-time login is
-interactive, once:
+Both machines run a persistent, user-owned VS Code tunnel once configured.
+It makes an **outbound** connection, so it needs no router or firewall rule.
+Open VS Code's Remote Explorer (or `https://vscode.dev`), sign in with the
+same GitHub account, and connect to `homelab` or `work-linux`.
+
+The tunnel token is imperative state at `~/.vscode/cli/token.json`. It must
+remain readable only by its owner and must be recreated after a reinstall or
+if it is deleted. The service intentionally uses this file rather than GNOME
+Keyring: a service that starts before graphical login cannot unlock the
+keyring.
+
+### Homelab (NixOS)
+
+The NixOS configuration supplies VS Code, `nix-ld`, user lingering, and the
+service. After applying the configuration, log in as `mt` and authenticate it:
 
 ```
+sudo nixos-rebuild switch --flake ~/nix#homelab
 export VSCODE_CLI_USE_FILE_KEYCHAIN=1
 code tunnel user login --provider github
-code tunnel --accept-server-license-terms
+chmod 600 ~/.vscode/cli/token.json
+systemctl --user enable --now code-tunnel.service
 ```
 
-See `hosts/homelab/nixos/vscode-tunnel.nix` for why `VSCODE_CLI_USE_FILE_KEYCHAIN`
-matters on a headless boot.
+Confirm that it is healthy and that it will survive reboot without a desktop
+login:
+
+```
+systemctl --user status code-tunnel.service
+loginctl show-user mt -p Linger
+journalctl --user -u code-tunnel.service -f
+```
+
+`Linger=yes` is expected. Do not run `code tunnel service install`; Home
+Manager owns the unit so upgrades remain declarative.
+
+### Work laptop (Ubuntu)
+
+Ubuntu owns the VS Code package; Nix/Home Manager only manages the tunnel
+unit. First install the official Microsoft APT source and stable `code`
+package:
+
+```
+sudo apt install wget gpg
+wget -qO- https://packages.microsoft.com/keys/microsoft.asc | \
+  sudo gpg --dearmor -o /usr/share/keyrings/microsoft.gpg
+sudo tee /etc/apt/sources.list.d/vscode.sources > /dev/null <<'EOF'
+Types: deb
+URIs: https://packages.microsoft.com/repos/code
+Suites: stable
+Components: main
+Architectures: amd64,arm64,armhf
+Signed-By: /usr/share/keyrings/microsoft.gpg
+EOF
+sudo apt update
+sudo apt install code
+```
+
+Then apply the Home Manager profile, permit the user manager to live after
+logout, and authenticate as `tu-le5`:
+
+```
+home-manager switch --flake ~/nix#tu-le5@work-linux
+sudo loginctl enable-linger tu-le5
+export VSCODE_CLI_USE_FILE_KEYCHAIN=1
+code tunnel user login --provider github
+chmod 600 ~/.vscode/cli/token.json
+systemctl --user enable --now code-tunnel.service
+```
+
+Verify it and inspect failures with:
+
+```
+command -v code
+systemctl --user status code-tunnel.service
+loginctl show-user tu-le5 -p Linger
+journalctl --user -u code-tunnel.service -f
+```
+
+If the token expires or is removed, rerun `code tunnel user login --provider
+github`, then restart the unit with `systemctl --user restart
+code-tunnel.service`. The current VS Code Linux installation instructions are
+available at <https://code.visualstudio.com/docs/setup/linux>.
 
 ## 7. Offsite backup (optional)
 

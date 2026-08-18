@@ -275,8 +275,8 @@ No sops/agenix. Credentials are imperative state, not in the flake:
 
 - The argohome deploy key, placed by hand at `~/.ssh/id_ed25519`. Its public
   key must be a read-only Deploy key on the private argohome repo.
-- The VS Code tunnel's GitHub token (`vscode-tunnel.nix`), created via an
-  interactive `code tunnel user login` on the box itself.
+- The VS Code tunnel's GitHub token (`modules/home/vscode.nix`), created via
+  an interactive `code tunnel user login` on each machine itself.
 - The Google Drive `rclone.conf` (`backup.nix`), created via an interactive
   `sudo rclone config` on the box itself — no separate machine or file copy.
 

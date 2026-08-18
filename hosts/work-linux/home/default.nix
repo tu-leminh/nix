@@ -7,6 +7,7 @@
     ../../../modules/home/mango.nix
     ../../../modules/home/noctalia.nix
     ../../../modules/home/wezterm.nix
+    ../../../modules/home/vscode.nix
   ];
 
   home.username = "tu-le5";
@@ -35,6 +36,19 @@
   };
 
   programs.nushell.shellAliases.rebuild = "home-manager switch --flake ~/nix#tu-le5@work-linux";
+
+  # VS Code itself is installed and updated by Ubuntu's Microsoft APT source.
+  # The shared Home Manager capability only owns the user service.
+  services.vscode-tunnel = {
+    enable = true;
+    executable = "/usr/bin/code";
+    tunnelName = "work-linux";
+    servicePath = [
+      config.home.profileDirectory
+      "/usr/local"
+      "/usr"
+    ];
+  };
 
   # mango is launched by GDM with no login shell, so ~/.nix-profile/bin
   # (mango, noctalia, wezterm) isn't on PATH. Expose it to the session via
