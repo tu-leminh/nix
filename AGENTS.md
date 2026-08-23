@@ -22,7 +22,7 @@ One flake, three outputs:
 - **`nixosConfigurations.installer`** — a minimal, bcachefs-enabled
   installation ISO.
 - **`nixosConfigurations.homelab`** — the installed machine: a single
-  bcachefs pool across 5 disks, GNOME + Mango + Noctalia, and a single-node K3s cluster
+  bcachefs pool across 6 disks, GNOME + Mango + Noctalia, and a single-node K3s cluster
   that bootstraps the private
   [argohome](https://github.com/tu-leminh/argohome) Argo CD GitOps stack.
 - **`homeConfigurations."tu-le5@work-linux"`** — standalone home-manager (no
@@ -66,13 +66,14 @@ hardware—under `hosts/`.
 
 ## Storage
 
-One bcachefs filesystem (`pool`) spans all five devices, referenced by
+One bcachefs filesystem (`pool`) spans all six devices, referenced by
 `/dev/disk/by-id/*`. Device groups drive tiering:
 
 | Group | Device | Role |
 | --- | --- | --- |
 | `ssd.nvme0` | Crucial P3 2TB | ESP (`/boot`, FAT32 1G) + pool member, part of `ssd` group |
 | `ssd.ssd0` | WD Blue 500GB | pool member, part of `ssd` group |
+| `ssd.nvme1` | Samsung PM961 128GB | pool member, part of `ssd` group (added online post-install) |
 | `hdd` ×3 | 1TB + 500GB + 2TB | pool members |
 
 Device labels are dot-hierarchical (`ssd.ssd0`, `ssd.nvme0`); a target of
@@ -80,7 +81,9 @@ Device labels are dot-hierarchical (`ssd.ssd0`, `ssd.nvme0`); a target of
 lands on both ssd and nvme. No other targets are set: the allocator spreads
 data across every device by free space instead of a fixed hot/cold split.
 
-Pool format args: `--metadata_target=ssd --replicas=2`.
+Pool format args: `--metadata_target=ssd --replicas=2 --gc_reserve_percent=5`.
+The 5% is the kernel-minimum copygc reserve (default 8% held back ~490 GB on
+this pool); runtime-tunable via `bcachefs set-fs-option`, no reformat needed.
 No erasure coding, encryption, or compression.
 
 Subvolumes → mounts: `root`→`/`, `data/tier1..3`→`/data/tier1..3`.
@@ -190,8 +193,8 @@ widgets) lives in `modules/home/noctalia.nix`. The GUI's
 `~/.local/state/noctalia/settings.toml` overrides are imperative state, not in
 the flake.
 
-CLI/TUI tools (neovim, lazygit, superfile, claude-code, codex, antigravity,
-opencode, btop, kubectl, k9s, helm, argocd, herdr) and chrome live in
+CLI/TUI tools (neovim, lazygit, superfile, claude-code, codex, antigravity-ide,
+opencode, btop, k9s, kubectl, k9s, helm, argocd, herdr) and chrome live in
 `modules/home/base.nix`; `allowUnfree` lives in `modules/nixos/base.nix`.
 
 ## K3s + Cilium + Argo CD bootstrap

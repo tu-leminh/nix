@@ -13,6 +13,8 @@
   home.homeDirectory = "/home/mt";
   home.stateVersion = "26.11";
 
+  home.packages = [ pkgs.google-chrome ];
+
   programs.git.settings.user = {
     name = "mt";
     email = "mt.the.dev@gmail.com";

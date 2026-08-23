@@ -1,4 +1,4 @@
-# homelab — the installed machine: 5-disk bcachefs pool, GNOME + Mango,
+# homelab — the installed machine: 6-disk bcachefs pool, GNOME + Mango,
 # single-node K3s bootstrapping the argohome Argo CD stack.
 { pkgs, ... }:
 {
