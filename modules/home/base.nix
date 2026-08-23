@@ -5,6 +5,14 @@
 
   programs.git.enable = true;
 
+  # Nord themes: btop's is built in; k9s needs the skin file plus ui.skin.
+  programs.btop.enable = true;
+  programs.btop.settings.color_theme = "nord";
+
+  programs.k9s.enable = true;
+  programs.k9s.settings.k9s.ui.skin = "nord";
+  programs.k9s.skins.nord = ./k9s-nord.yaml;
+
   home.packages = with pkgs; [
     # Dev / AI CLIs
     neovim
@@ -12,13 +20,11 @@
     superfile
     claude-code
     codex
-    antigravity
+    antigravity-ide
     opencode
 
     # Ops
-    btop
     kubectl
-    k9s
     kubernetes-helm
     argocd
     herdr

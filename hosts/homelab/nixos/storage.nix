@@ -77,6 +77,9 @@ in
       };
 
       ssd = poolMember "/dev/disk/by-id/ata-WDC_WDS500G2B0A_2013BV468107" "ssd.ssd0";
+      # Added online post-install via `bcachefs device add --label=ssd.nvme1`;
+      # recorded here so a disko reinstall reproduces the live layout.
+      nvme1 = poolMember "/dev/disk/by-id/nvme-SAMSUNG_MZVPW128HEGM-00000_S347NY0HB00581" "ssd.nvme1";
       hdd0 = poolMember "/dev/disk/by-id/ata-HGST_HTS721010A9E630_JR1000D318DL7E" "hdd.hdd0";
       hdd1 = poolMember "/dev/disk/by-id/ata-WDC_WD5000LPVX-80V0TT0_WD-WX81AB48A024" "hdd.hdd1";
       hdd2 = poolMember "/dev/disk/by-id/ata-ST2000LM007-1R8174_WDZG9GQS" "hdd.hdd2";
@@ -88,6 +91,10 @@ in
       extraFormatArgs = [
         "--metadata_target=ssd"
         "--replicas=2"
+        # kernel-minimum copygc reserve (valid range 5-21, default 8); 8% holds
+        # back ~490G on this pool. Runtime-tunable via `bcachefs set-fs-option`
+        # if the fuller reserve is ever needed again.
+        "--gc_reserve_percent=5"
       ];
       subvolumes = {
         "root".mountpoint = "/";

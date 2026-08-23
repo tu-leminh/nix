@@ -1,6 +1,6 @@
 # nix
 
-Bcachefs installer ISO + a tiered 5-disk NixOS home-lab host (K3s + Argo CD),
+Bcachefs installer ISO + a tiered 6-disk NixOS home-lab host (K3s + Argo CD),
 plus a standalone home-manager setup for an Ubuntu work laptop.
 Architecture and design notes: see [AGENTS.md](AGENTS.md).
 
@@ -22,7 +22,7 @@ sudo dd if=./result/iso/nixos-minimal-*.iso of=/dev/sdX bs=4M status=progress of
 
 ## 3. Install
 
-Boot the USB first. This **erases all 5 disks** (wipes any existing OS):
+Boot the USB first. This **erases all 6 disks** (wipes any existing OS):
 
 ```
 # rm first so a retry after a failed attempt re-pulls the latest code
@@ -41,6 +41,16 @@ Log in as `mt` (or `root`); password is a single space. Change it:
 
 ```
 passwd
+```
+
+Installs made before `--gc_reserve_percent=5` landed in `storage.nix` still
+carry the 8% default; apply the smaller reserve once to the running
+filesystem (persists in the superblock, no reformat):
+
+```
+# any pool member partition; persists in the superblock, no reformat
+sudo bcachefs set-fs-option --gc_reserve_percent=5 \
+  "$(findmnt -no SOURCE / | cut -d: -f1)"
 ```
 
 ## 5. Start the GitOps stack
