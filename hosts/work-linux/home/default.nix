@@ -1,6 +1,6 @@
 # Ubuntu work laptop — standalone home-manager. GNOME/GDM stays system-managed;
 # this host selects its shared user capabilities and supplies local identity.
-{ config, ... }:
+{ config, pkgs, ... }:
 {
   imports = [
     ../../../modules/home/base.nix
@@ -47,6 +47,18 @@
   };
 
   nixpkgs.config.allowUnfree = true;
+
+  # Work-only dev tooling: momo builds via Bazelisk, which reads the repo's
+  # .bazelversion to fetch the pinned Bazel. nixpkgs' bazelisk installs only
+  # the bazelisk binary, so expose it under the usual "bazel" name too.
+  # uv lives in shared base.nix.
+  home.packages = with pkgs; [
+    (pkgs.symlinkJoin {
+      name = "bazelisk-bazel";
+      paths = [ pkgs.bazelisk ];
+      postBuild = "ln -s ${pkgs.bazelisk}/bin/bazelisk $out/bin/bazel";
+    })
+  ];
 
   programs.git.settings.user = {
     name = "tu.le5";

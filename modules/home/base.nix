@@ -22,6 +22,7 @@
     codex
     antigravity-ide
     opencode
+    uv
 
     # Ops
     kubectl

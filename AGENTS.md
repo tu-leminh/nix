@@ -194,7 +194,7 @@ widgets) lives in `modules/home/noctalia.nix`. The GUI's
 the flake.
 
 CLI/TUI tools (neovim, lazygit, superfile, claude-code, codex, antigravity-ide,
-opencode, btop, k9s, kubectl, k9s, helm, argocd, herdr) and chrome live in
+opencode, uv, btop, k9s, kubectl, k9s, helm, argocd, herdr) and chrome live in
 `modules/home/base.nix`; `allowUnfree` lives in `modules/nixos/base.nix`.
 
 ## K3s + Cilium + Argo CD bootstrap
