@@ -201,6 +201,23 @@ GNOME/GDM stays as the login manager and Mango is picked from it.
    home-manager switch --flake ~/nix#tu-le5@work-linux
    ```
 
+   The profile includes the GKE authentication plugin. Authenticate the Google
+   Cloud CLI when needed:
+
+   ```
+   gcloud auth login
+   ```
+
+   This stores credentials under `~/.config/gcloud`; they are imperative
+   user state and must be re-created after a reinstall.
+
+   Verify GKE access after fetching a cluster kubeconfig:
+
+   ```
+   gke-gcloud-auth-plugin --version
+   kubectl cluster-info
+   ```
+
 4. Make Ubuntu's graphics drivers available to Nix GUI apps. The switch output
    prints a command like the following whenever this needs installing or
    refreshing; run that exact command with sudo:

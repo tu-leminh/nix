@@ -51,9 +51,14 @@
 
   # Work-only dev tooling: momo builds via Bazelisk, which reads the repo's
   # .bazelversion to fetch the pinned Bazel. nixpkgs' bazelisk installs only
-  # the bazelisk binary, so expose it under the usual "bazel" name too.
+  # the bazelisk binary, so expose it under the usual "bazel" name too. GKE
+  # kubeconfigs invoke this SDK component directly for kubectl authentication.
   # uv lives in shared base.nix.
   home.packages = with pkgs; [
+    (google-cloud-sdk.withExtraComponents [
+      google-cloud-sdk.components.gke-gcloud-auth-plugin
+    ])
+    skaffold
     (pkgs.symlinkJoin {
       name = "bazelisk-bazel";
       paths = [ pkgs.bazelisk ];
