@@ -1,18 +1,16 @@
 { config, pkgs, ... }:
 let
-  weztermPackage = config._module.args.weztermPackage or pkgs.wezterm;
   jetbrainsMono = pkgs.nerd-fonts.jetbrains-mono;
   # WezTerm's hardware front ends hard-hang the work laptop's i915 GPU
   # (kernel context resets freeze the window and stutter the whole desktop):
   # WebGpu/Vulkan first, then OpenGL/desktop-GL too. Software is the only
-  # stable path there, while mango/noctalia stay fine on GLES/EGL - so that
-  # laptop opts out via _module.args.weztermFrontEnd instead of this module
-  # forcing software rendering on healthy GPUs.
+  # stable path there, so that laptop opts out via _module.args.weztermFrontEnd
+  # instead of this module forcing software rendering on healthy GPUs.
   frontEnd = config._module.args.weztermFrontEnd or "WebGpu";
 in
 {
-  home.packages = [
-    weztermPackage
+  home.packages = with pkgs; [
+    wezterm
     # LazyVim and other TUIs need nerd-font glyphs.
     jetbrainsMono
   ];
@@ -36,11 +34,11 @@ in
         font = wezterm.font("JetBrainsMono Nerd Font"),
         font_size = 10.0,
         color_scheme = "nord",
-        default_prog = { "nu" },
+        default_prog = { "xonsh" },
         -- Hardware front ends reset the work laptop's i915 GPU; see the
         -- frontEnd comment in modules/home/wezterm.nix.
         front_end = "${frontEnd}",
-        window_background_opacity = 0.5,
+        window_background_opacity = 0.65,
         text_background_opacity = 0.5,
         enable_tab_bar = true,
         use_fancy_tab_bar = true,

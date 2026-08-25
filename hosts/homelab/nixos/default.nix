@@ -1,12 +1,10 @@
-# homelab — the installed machine: 6-disk bcachefs pool, GNOME + Mango,
+# homelab — the installed machine: 6-disk bcachefs pool, GNOME + PaperWM,
 # single-node K3s bootstrapping the argohome Argo CD stack.
 { pkgs, ... }:
 {
   imports = [
     ../../../modules/nixos/base.nix
-    ../../../modules/nixos/graphical.nix
     ../../../modules/nixos/gnome.nix
-    ../../../modules/nixos/mango.nix
     ../../../modules/nixos/home-manager.nix
     ../../../modules/nixos/ssh.nix
     ./gnome-policy.nix
@@ -37,7 +35,6 @@
     isNormalUser = true;
     extraGroups = [ "wheel" "networkmanager" ];
     initialPassword = " ";
-    shell = pkgs.nushell;
   };
   systemd.tmpfiles.rules = [ "d /home/mt/.ssh 0700 mt users -" ];
   security.sudo.extraRules = [

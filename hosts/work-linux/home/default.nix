@@ -5,8 +5,8 @@
   imports = [
     ../../../modules/home/base.nix
     ../../../modules/home/lazyvim.nix
-    ../../../modules/home/mango.nix
-    ../../../modules/home/noctalia.nix
+    ../../../modules/home/gnome.nix
+    ../../../modules/home/gnome-keys.nix
     ../../../modules/home/wezterm.nix
     ../../../modules/home/vscode.nix
   ];
@@ -23,37 +23,18 @@
   # Make Ubuntu's Mesa/EGL drivers available to every Nix GUI app.
   targets.genericLinux.enable = true;
 
-  # GDM reads the system-wide copy installed during Ubuntu setup. Keep its
-  # source here so it has an absolute Exec path and is easy to refresh.
-  home.file.".local/share/wayland-sessions/mango.desktop".text = ''
-    [Desktop Entry]
-    Name=Mango
-    Comment=Mango Wayland compositor
-    Exec=${config.home.homeDirectory}/.config/mango/launch
-    Type=Application
-    DesktopNames=mango;wlroots
-  '';
-
-  # GDM hands Mango Ubuntu's stock PATH, so bare commands in Mango's
-  # exec-once/keybinds cannot resolve. The wrapper also guarantees the Nix
-  # profile's desktop entries remain discoverable to the whole session.
-  home.file.".config/mango/launch" = {
-    executable = true;
-    text = ''
-      #!/bin/sh
-      export PATH="${config.home.profileDirectory}/bin:/nix/var/nix/profiles/default/bin:$PATH"
-      export XDG_DATA_DIRS="${config.home.profileDirectory}/share:''${XDG_DATA_DIRS:-/usr/local/share:/usr/share}"
-      exec "${config.home.profileDirectory}/bin/mango" "$@"
-    '';
-  };
-
   nixpkgs.config.allowUnfree = true;
 
   # Work-only dev tooling: momo builds via Bazelisk, which reads the repo's
   # .bazelversion to fetch the pinned Bazel. nixpkgs' bazelisk installs only
-  # the bazelisk binary, so expose it under the usual "bazel" name too.
+  # the bazelisk binary, so expose it under the usual "bazel" name too. GKE
+  # kubeconfigs invoke this SDK component directly for kubectl authentication.
   # uv lives in shared base.nix.
   home.packages = with pkgs; [
+    (google-cloud-sdk.withExtraComponents [
+      google-cloud-sdk.components.gke-gcloud-auth-plugin
+    ])
+    skaffold
     (pkgs.symlinkJoin {
       name = "bazelisk-bazel";
       paths = [ pkgs.bazelisk ];
@@ -66,7 +47,10 @@
     email = "tu.le5@mservice.com.vn";
   };
 
-  programs.nushell.shellAliases.rebuild = "home-manager switch --flake ~/nix#tu-le5@work-linux";
+  # rc.d/ drop-in rather than ~/.xonshrc, which base.nix owns.
+  xdg.configFile."xonsh/rc.d/rebuild.xsh".text = ''
+    aliases["rebuild"] = "home-manager switch --flake ~/nix#tu-le5@work-linux"
+  '';
 
   # VS Code itself is installed and updated by Ubuntu's Microsoft APT source.
   # The shared Home Manager capability only owns the user service.
@@ -81,9 +65,9 @@
     ];
   };
 
-  # Terminals and user units resolve nix commands via environment.d below;
-  # the GDM->mango session chain ignores it (it takes PATH from PAM), which
-  # is why .config/mango/launch exists.
+  # GNOME-spawned apps (WezTerm, browsers) resolve nix commands through
+  # environment.d; the interactive bash shell gets them from hm-session-vars.sh
+  # plus the nix profile that targets.genericLinux adds to programs.bash.
   systemd.user.sessionVariables.PATH =
     "${config.home.profileDirectory}/bin:/nix/var/nix/profiles/default/bin:/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin";
 }

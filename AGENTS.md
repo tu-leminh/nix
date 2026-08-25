@@ -14,6 +14,14 @@ Technical reference for this flake. User-facing steps live in
   cryptic one.
 - Shared configuration lives in `modules/`; hosts explicitly import each
   capability. NixOS-only display, hardware, and server policy remain host-local.
+- A host adapts a shared module in one of four ways, best first: fill a typed
+  option the module declares (`modules/home/vscode.nix` declares
+  `executable`/`tunnelName`/`servicePath`); import only the capabilities it
+  wants; set `_module.args.<key>` for a narrow override read as
+  `config._module.args.<key> or <default>` (currently only
+  `weztermFrontEnd`); or drop in a host-local file such as
+  `xdg.configFile."xonsh/rc.d/…"`. Don't hardcode a machine fact in
+  `modules/`, and don't add an untyped knob that no host sets.
 
 ## Purpose
 
@@ -22,8 +30,8 @@ One flake, three outputs:
 - **`nixosConfigurations.installer`** — a minimal, bcachefs-enabled
   installation ISO.
 - **`nixosConfigurations.homelab`** — the installed machine: a single
-  bcachefs pool across 6 disks, GNOME + Mango + Noctalia, and a single-node K3s cluster
-  that bootstraps the private
+  bcachefs pool across 6 disks, GNOME with PaperWM tiling, and a single-node
+  K3s cluster that bootstraps the private
   [argohome](https://github.com/tu-leminh/argohome) Argo CD GitOps stack.
 - **`homeConfigurations."tu-le5@work-linux"`** — standalone home-manager (no
   NixOS) for an Ubuntu work laptop (nix as package manager + dotfiles): same
@@ -31,9 +39,10 @@ One flake, three outputs:
 
 ## Inputs / outputs
 
-- Inputs: `nixpkgs` (nixos-unstable), `disko`, `home-manager`, `noctalia`
-  (official Noctalia v5 flake, `inputs.nixpkgs.follows = "nixpkgs"`; its Home
-  Manager module drives `modules/home/noctalia.nix`).
+- Inputs: `nixpkgs` (nixos-unstable), `disko`, `home-manager`, `paperwm`
+  (upstream's own flake, `inputs.nixpkgs.follows = "nixpkgs"`; there is no
+  nixpkgs package for the PaperWM GNOME Shell extension, so this input
+  packages it — see Desktop below).
 - `nixosConfigurations.installer` → `.#iso` = `…build.isoImage`.
 - `nixosConfigurations.homelab` (x86_64-linux, `stateVersion = "26.11"`).
 - `homeConfigurations."tu-le5@work-linux"` (x86_64-linux).
@@ -53,8 +62,8 @@ hosts/
   homelab/home/default.nix   mt identity and selected shared home capabilities
   work-linux/home/default.nix  standalone Home Manager config for tu-le5
 modules/
-  nixos/                     base, graphical, GNOME, Mango, SSH, Home Manager integration
-  home/                      base CLI tools plus Mango, Noctalia, and WezTerm capabilities
+  nixos/                     base, GNOME + PaperWM, SSH, Home Manager integration
+  home/                      base CLI tools plus GNOME/PaperWM and WezTerm capabilities
 ```
 
 ### Adding a machine
@@ -164,38 +173,75 @@ DHCP). WiFi and other links stay NM-managed.
   Bluetooth, iwlwifi, and r8169 NIC blobs.
 - Firewall **off** (trusted home LAN) — so no k3s/Cilium port rules are needed.
 - `root` and `mt` both have `initialPassword = " "` (change on first boot).
-  `mt` is in `wheel` + `networkmanager`, login shell is nushell.
+  `mt` is in `wheel` + `networkmanager`, login shell is bash (the NixOS
+  default — nothing sets `shell` anymore).
 - OpenSSH: `PermitRootLogin = no`, `PasswordAuthentication = true`.
 - Timezone `Asia/Ho_Chi_Minh`.
 
 ## Desktop
 
-GDM offers both GNOME and Mango (Wayland) at login. The reusable NixOS
-capabilities are split into `modules/nixos/graphical.nix`, `gnome.nix`, and
-`mango.nix`, so each can be selected independently.
+GNOME is the session on both machines, with PaperWM tiling. Waybar, Fuzzel,
+Mango, and Noctalia are gone — no bar, launcher, or control-center config
+exists in the flake; GNOME's own top bar, overview, and quick settings are
+what you get, so the previous Nord/blue theme is gone too.
 
-Mango, Noctalia, and WezTerm are separate Home Manager capabilities under
-`modules/home/`, selected by each host. Mango starts Noctalia with `exec-once=noctalia`; its launcher,
-control center, Settings, volume, mute, and brightness bindings use
-`noctalia msg …`. Waybar and Fuzzel are not configured.
+PaperWM is a GNOME Shell extension with no nixpkgs package, so the `paperwm`
+flake input packages it (its `shell-version` is 45–50 and homelab's pinned
+nixpkgs ships GNOME Shell 50.x; a future bump past 50 means switching the
+input to a versioned upstream branch). Only the GDM registration differs by
+host, because each machine's GNOME is started differently:
 
-Only the GDM registration differs by host: NixOS uses
-`services.displayManager.sessionPackages`, while the Ubuntu laptop installs a
-one-time system-wide copy of its Home Manager-generated `.desktop` file with
-an absolute `Exec` (see the Ubuntu setup steps in `README.md`). Home Manager's
-Generic Linux target exposes Ubuntu's Mesa/EGL runtime to all Nix GUI apps via
-`/run/opengl-driver`. The homelab's
-`hosts/homelab/nixos/gnome-policy.nix` owns server-only GNOME policy: no sleep or idle
-actions and no unneeded GNOME background services.
+- **homelab** — `modules/nixos/gnome.nix` puts the extension in
+  `environment.systemPackages` (the system profile lands it in
+  `/run/current-system/sw/share/gnome-shell/extensions`, where GNOME Shell
+  looks) and enables it for every user through
+  `programs.dconf.profiles.user.databases`.
+- **work-linux** — `modules/home/gnome.nix` symlinks the same store path into
+  `~/.local/share/gnome-shell/extensions/` and enables it via
+  `dconf.settings`. GDM starts GNOME outside the Nix profile there, so
+  `XDG_DATA_DIRS` can't be relied on; the user extension dir always is
+  scanned.
 
-Noctalia's managed `~/.config/noctalia/config.toml` (the bar layout and
-widgets) lives in `modules/home/noctalia.nix`. The GUI's
-`~/.local/state/noctalia/settings.toml` overrides are imperative state, not in
-the flake.
+The two files can't be merged: a NixOS module and a Home Manager module
+can't share one file. Server-only GNOME policy (no sleep/idle, trimmed
+background services) stays host-local in
+`hosts/homelab/nixos/gnome-policy.nix` — it is deliberately not folded into
+the shared capability, so a future NixOS desktop host doesn't inherit it.
+
+`modules/home/gnome-keys.nix` (both hosts) carries Mango's keybindings over
+via dconf: PaperWM actions, fixed 9 workspaces (Ctrl+N view, Alt+N move
+window), launcher/screenshot/lock, and `Alt+Return` for WezTerm. PaperWM and
+GNOME defaults that collide are cleared there. Mango-only features (layout
+switching, gaps, minimize, pixel move/resize, float) have no equivalent.
+
+Home Manager's Generic Linux target exposes Ubuntu's Mesa/EGL runtime to all
+Nix GUI apps via `/run/opengl-driver`.
 
 CLI/TUI tools (neovim, lazygit, superfile, claude-code, codex, antigravity-ide,
-opencode, uv, btop, k9s, kubectl, k9s, helm, argocd, herdr) and chrome live in
-`modules/home/base.nix`; `allowUnfree` lives in `modules/nixos/base.nix`.
+opencode, uv, btop, k9s, kubectl, helm, argocd, herdr, xonsh, fzf) and chrome
+live in `modules/home/base.nix`, along with the shells and zoxide wiring
+below; `allowUnfree` lives in `modules/nixos/base.nix`.
+
+### Shells: bash, xonsh, zoxide
+
+`modules/home/base.nix` owns the shell setup for both machines:
+
+- `programs.bash.enable` — GNOME Terminal is bash on both hosts. Enabling it
+  also activates the `targets.genericLinux` hook that sources `nix.sh` and
+  `hm-session-vars.sh`; that hook is `mkIf programs.bash.enable`, so on the
+  Ubuntu laptop it was silently dead before this. Note HM takes full
+  ownership of `~/.bashrc`, so the laptop needs a one-time
+  `mv ~/.bashrc ~/.bashrc.backup` (see `README.md`).
+- `xonsh` is only a WezTerm `default_prog`, never the system login shell.
+- `programs.zoxide.enable` with default options: `z`/`zi` sit next to a normal
+  `cd`, it is not aliased over it. The bash hook is automatic; there is no
+  `enableXonshIntegration`, so `~/.xonshrc` is written by hand with upstream's
+  `execx($(zoxide init xonsh), …)` and an absolute store path. `fzf` backs
+  `zi`'s interactive picker.
+
+Hosts add host-specific shell values as xonsh `rc.d` drop-ins
+(`xdg.configFile."xonsh/rc.d/…"`) rather than editing `~/.xonshrc`, which the
+shared module owns — that's where the `rebuild` alias lives.
 
 ## K3s + Cilium + Argo CD bootstrap
 

@@ -190,18 +190,43 @@ journalctl -u 'gdrive-restore@*' -e
 ## Work laptop (Ubuntu)
 
 Standalone home-manager (no NixOS): nix is only a package manager + dotfile
-manager here. Mango, Noctalia, WezTerm, and all CLI tools come from nix;
-GNOME/GDM stays as the login manager and Mango is picked from it.
+manager here. PaperWM, WezTerm, and all CLI tools come from nix; GNOME/GDM
+itself stays as Ubuntu's, with PaperWM linked into the user extension dir.
 
 1. Install nix (e.g. the Determinate Systems installer) on the laptop.
 2. Clone this repo to `~/nix`.
-3. Apply:
+3. Move Ubuntu's stock `~/.bashrc` out of the way. Home Manager now owns that
+   file (it manages bash so `zoxide` can hook into it), and it will refuse to
+   activate over an unclaimed file:
+
+   ```
+   mv ~/.bashrc ~/.bashrc.backup
+   ```
+
+4. Apply:
 
    ```
    home-manager switch --flake ~/nix#tu-le5@work-linux
    ```
 
-4. Make Ubuntu's graphics drivers available to Nix GUI apps. The switch output
+   The profile includes the GKE authentication plugin. Authenticate the Google
+   Cloud CLI when needed:
+
+   ```
+   gcloud auth login
+   ```
+
+   This stores credentials under `~/.config/gcloud`; they are imperative
+   user state and must be re-created after a reinstall.
+
+   Verify GKE access after fetching a cluster kubeconfig:
+
+   ```
+   gke-gcloud-auth-plugin --version
+   kubectl cluster-info
+   ```
+
+5. Make Ubuntu's graphics drivers available to Nix GUI apps. The switch output
    prints a command like the following whenever this needs installing or
    refreshing; run that exact command with sudo:
 
@@ -214,37 +239,42 @@ GNOME/GDM stays as the login manager and Mango is picked from it.
    when a later `home-manager switch` reports that the GPU drivers need an
    update.
 
-5. Register Mango with GDM. This is needed once after a fresh Ubuntu install:
+6. If this laptop previously used the Mango compositor, drop its GDM session
+   entry (one-time cleanup; the flake no longer manages it):
 
    ```
-   sudo install -Dm644 ~/.local/share/wayland-sessions/mango.desktop \
-     /usr/share/wayland-sessions/mango.desktop
+   sudo rm -f /usr/share/wayland-sessions/mango.desktop
    ```
 
-   GDM reads its session list before login, so it does not discover the
-   Home Manager-managed user entry. The installed file points at the stable
-   `~/.config/mango/launch` wrapper, which injects the nix profile's PATH and
-   XDG_DATA_DIRS into the whole Mango session, so later `home-manager switch`
-   runs keep it working. Re-run this install command if you ever change the
-   generated `.desktop` itself — that copy is the one thing home-manager
-   cannot push to GDM. Log out and choose "Mango" from GDM's session menu.
+7. Log out and back in. GNOME Shell only picks up a newly installed extension
+   on a fresh session, so PaperWM's tiling appears after the next login.
+   Confirm with:
 
-   The host GPU setup above makes Ubuntu's Mesa/EGL runtime available to every
-   Nix GUI app, including Mango, Noctalia, and Flutter applications.
+   ```
+   gnome-extensions list --enabled | grep paperwm
+   ```
 
 ## Desktop profile
 
-Mango, Noctalia, and WezTerm are separate shared capabilities under
-`modules/home/`, selected explicitly by each host. Mango starts Noctalia once; Super+Space opens its launcher,
-Super+S opens the control center, Super+Comma opens Settings,
-Super+Shift+S starts a region screenshot, and Super+L locks the session.
+PaperWM and WezTerm are separate shared capabilities under `modules/home/`,
+selected explicitly by each host. PaperWM gives GNOME scrollable tiling; the
+shortcuts are set in `modules/home/gnome-keys.nix` (Mango's old keys: Alt+arrows
+focus, Super+Shift+arrows move, Alt+q close, Ctrl/Alt+1..9 workspaces).
 
-NixOS plumbing is split by capability: `modules/nixos/graphical.nix` supplies
-GDM, audio, graphics, Bluetooth, fonts, and UPower; `gnome.nix` and `mango.nix`
-enable their respective sessions. `hosts/homelab/nixos/gnome-policy.nix` adds
-the server's no-sleep and minimal-GNOME policy.
+NixOS plumbing is one `modules/nixos/gnome.nix`: GDM, audio, graphics,
+Bluetooth, fonts, UPower, the GNOME session, and PaperWM. PaperWM has no
+nixpkgs package — the `paperwm` flake input builds it, and the system profile
+puts it where GNOME Shell looks for extensions.
+`hosts/homelab/nixos/gnome-policy.nix` adds the server's no-sleep and
+minimal-GNOME policy.
 
-The bar config (floating, CPU/mem, clock, media, etc.) is managed declaratively
-in `modules/home/noctalia.nix`. Noctalia Settings writes GUI overrides to
-`~/.local/state/noctalia/settings.toml`, which wins over the managed config and
-survives a reinstall only if copied by hand.
+On the Ubuntu laptop `modules/home/gnome.nix` links the same extension into
+`~/.local/share/gnome-shell/extensions/`, because GDM starts GNOME outside
+the Nix profile and `XDG_DATA_DIRS` can't be relied on there.
+
+Shell-wise, bash is the login shell and GNOME Terminal's shell on both
+machines; `xonsh` is WezTerm's `default_prog` only. `zoxide` gives both `z`
+and `zi` (with `fzf` for the interactive picker) without replacing `cd`.
+Note PaperWM's upstream `shell-version` is 45–50, matching the GNOME Shell 50
+that homelab's pinned nixpkgs ships; past that, switch the input to a versioned
+upstream branch.
