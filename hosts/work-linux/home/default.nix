@@ -4,6 +4,7 @@
 {
   imports = [
     ../../../modules/home/base.nix
+    ../../../modules/home/lazyvim.nix
     ../../../modules/home/mango.nix
     ../../../modules/home/noctalia.nix
     ../../../modules/home/wezterm.nix

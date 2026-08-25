@@ -13,9 +13,16 @@
   programs.k9s.settings.k9s.ui.skin = "nord";
   programs.k9s.skins.nord = ./k9s-nord.yaml;
 
+  # Lazygit executes editor commands with Bash even when it detects Nushell.
+  xdg.configFile."lazygit/config.yml".text = ''
+    os:
+      edit: '[ -z "$NVIM" ] && (nvim -- {{filename}}) || (nvim --server "$NVIM" --remote-send "q" && nvim --server "$NVIM" --remote-tab {{filename}})'
+      editAtLine: '[ -z "$NVIM" ] && (nvim +{{line}} -- {{filename}}) || (nvim --server "$NVIM" --remote-send "q" && nvim --server "$NVIM" --remote-tab {{filename}} && nvim --server "$NVIM" --remote-send ":{{line}}<CR>")'
+      openDirInEditor: '[ -z "$NVIM" ] && (nvim -- {{dir}}) || (nvim --server "$NVIM" --remote-send "q" && nvim --server "$NVIM" --remote-tab {{dir}})'
+  '';
+
   home.packages = with pkgs; [
     # Dev / AI CLIs
-    neovim
     lazygit
     superfile
     claude-code
