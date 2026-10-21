@@ -218,9 +218,11 @@ Home Manager's Generic Linux target exposes Ubuntu's Mesa/EGL runtime to all
 Nix GUI apps via `/run/opengl-driver`.
 
 CLI/TUI tools (neovim, lazygit, superfile, claude-code, codex, antigravity-ide,
-opencode, uv, btop, k9s, kubectl, helm, argocd, herdr, xonsh, fzf) and chrome
-live in `modules/home/base.nix`, along with the shells and zoxide wiring
-below; `allowUnfree` lives in `modules/nixos/base.nix`.
+opencode, uv, mise, btop, k9s, kubectl, helm, argocd, herdr, sops, age, xonsh,
+fzf) and chrome live in `modules/home/base.nix`, along with the shells and
+zoxide wiring below; `allowUnfree` lives in `modules/nixos/base.nix`. `mise` is
+installed without shell hooks, so use `mise exec -- …`/`mise run` or activate
+it manually per shell.
 
 ### Shells: bash, xonsh, zoxide
 
@@ -320,7 +322,8 @@ app gets a `hostPath`-backed config PVC.
 
 ## Secrets
 
-No sops/agenix. Credentials are imperative state, not in the flake:
+No sops-nix/agenix wiring. `sops` and `age` are installed as CLI tools in
+`modules/home/base.nix`; credentials remain imperative state, not in the flake:
 
 - The argohome deploy key, placed by hand at `~/.ssh/id_ed25519`. Its public
   key must be a read-only Deploy key on the private argohome repo.

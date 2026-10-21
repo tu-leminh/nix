@@ -22,7 +22,7 @@ in
     local wezterm = require("wezterm")
     local scheme = wezterm.color.get_builtin_schemes()["nord"]
 
-    -- All tab-bar shades derive from the nord palette itself; no hardcoded colors.
+    -- Window-frame shades derive from the nord palette itself; no hardcoded colors.
     local function lighter(amount)
       return wezterm.color.parse(scheme.background):lighten(amount)
     end
@@ -38,10 +38,9 @@ in
         -- Hardware front ends reset the work laptop's i915 GPU; see the
         -- frontEnd comment in modules/home/wezterm.nix.
         front_end = "${frontEnd}",
-        window_background_opacity = 0.65,
-        text_background_opacity = 0.5,
-        enable_tab_bar = true,
-        use_fancy_tab_bar = true,
+        window_background_opacity = 1.0,
+        text_background_opacity = 1.0,
+        enable_tab_bar = false,
         keys = {
             {
                 key = "W",
@@ -53,21 +52,6 @@ in
             font_size = 10.0,
             active_titlebar_bg = lighter(0.04),
             inactive_titlebar_bg = lighter(0.02),
-        },
-        colors = {
-            tab_bar = {
-                active_tab = { bg_color = scheme.ansi[7], fg_color = scheme.background },
-                inactive_tab = {
-                    bg_color = lighter(0.06),
-                    fg_color = wezterm.color.parse(scheme.foreground):darken(0.35),
-                },
-                inactive_tab_hover = { bg_color = lighter(0.12), fg_color = scheme.foreground },
-                new_tab = {
-                    bg_color = lighter(0.04),
-                    fg_color = wezterm.color.parse(scheme.foreground):darken(0.35),
-                },
-                new_tab_hover = { bg_color = lighter(0.12), fg_color = scheme.foreground },
-            },
         },
     }
   '';

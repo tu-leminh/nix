@@ -45,12 +45,15 @@
     antigravity-ide
     opencode
     uv
+    mise
 
     # Ops
     kubectl
     kubernetes-helm
     argocd
     herdr
+    sops
+    age
 
     # WezTerm's default shell, plus fzf for zoxide's interactive `zi` picker
     xonsh
