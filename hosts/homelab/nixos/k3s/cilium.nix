@@ -7,7 +7,9 @@
 # (apps/infra/cilium-lb, apps/infra/gateway) instead of living here.
 { pkgs, ... }:
 let
-  ciliumVersion = "1.19.6";
+  # Older releases crash probing bpf_set_retval on kernels >= 7.2.
+  # https://github.com/cilium/cilium/issues/48016
+  ciliumVersion = "1.19.8";
   gatewayApiVersion = "v1.6.1";
   # This node's own static LAN IP (network.nix) - Cilium's agents need this to
   # reach the apiserver directly since kube-proxy (and its Service routing)

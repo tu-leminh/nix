@@ -1,5 +1,5 @@
-# Makes inputs available to the home-manager configs (e.g. the official
-# noctalia module). Each host supplies its own users and home modules.
+# Makes flake inputs available to the home-manager configs (e.g. the paperwm
+# extension package). Each host supplies its own users and home modules.
 { inputs, ... }:
 {
   home-manager.useGlobalPkgs = true;   # share the system nixpkgs (+ its allowUnfree)

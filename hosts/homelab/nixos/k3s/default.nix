@@ -10,6 +10,12 @@
   services.k3s = {
     enable = true;
     role = "server";
+    # cAdvisor cannot read this bcachefs root pool; bypass its fatal startup check.
+    # TODO: restore storage isolation after upgrading to a k3s release with
+    # verified bcachefs support. Checked 2026-10-25: k3s 1.37.1 still lacks it.
+    # Before removing, verify filesystem stats and eviction-manager errors are fixed.
+    # Track: https://github.com/google/cadvisor/issues/3939
+    extraKubeletConfig.localStorageCapacityIsolation = false;
     extraFlags = toString [
       "--disable=traefik"
       "--disable=servicelb"

@@ -7,12 +7,15 @@
     disko.inputs.nixpkgs.follows = "nixpkgs";
     home-manager.url = "github:nix-community/home-manager";
     home-manager.inputs.nixpkgs.follows = "nixpkgs";
-    noctalia.url = "github:noctalia-dev/noctalia";
-    noctalia.inputs.nixpkgs.follows = "nixpkgs";
+    # PaperWM has no nixpkgs package; its flake packages the GNOME Shell
+    # extension itself (packages.default). Follows nixpkgs so only glib is
+    # needed to build it.
+    paperwm.url = "github:paperwm/PaperWM/release";
+    paperwm.inputs.nixpkgs.follows = "nixpkgs";
   };
 
   outputs =
-    inputs@{ self, nixpkgs, disko, home-manager, noctalia, ... }:
+    inputs@{ self, nixpkgs, disko, home-manager, paperwm, ... }:
     let
       system = "x86_64-linux";
       lib = nixpkgs.lib;

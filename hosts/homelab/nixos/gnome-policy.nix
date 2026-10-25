@@ -1,4 +1,5 @@
-# Server-only GNOME policy; the shared Mango + Noctalia profile stays in user/.
+# Server-only GNOME policy for this host; the shared GNOME + PaperWM
+# capability lives in modules/nixos/gnome.nix.
 { lib, ... }:
 {
   services.displayManager.gdm.autoSuspend = false;

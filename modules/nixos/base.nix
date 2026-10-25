@@ -10,5 +10,5 @@
 
   time.timeZone = lib.mkDefault "Asia/Ho_Chi_Minh";
 
-  environment.systemPackages = with pkgs; [ git vim nushell ];
+  environment.systemPackages = with pkgs; [ git vim ];
 }

@@ -2,23 +2,27 @@
 {
   imports = [
     ../../../modules/home/base.nix
-    ../../../modules/home/mango.nix
-    ../../../modules/home/noctalia.nix
+    ../../../modules/home/lazyvim.nix
+    ../../../modules/home/gnome-keys.nix
     ../../../modules/home/wezterm.nix
     ../../../modules/home/vscode.nix
-    ./noctalia.nix
   ];
 
   home.username = "mt";
   home.homeDirectory = "/home/mt";
   home.stateVersion = "26.11";
 
+  home.packages = [ pkgs.google-chrome ];
+
   programs.git.settings.user = {
     name = "mt";
     email = "mt.the.dev@gmail.com";
   };
 
-  programs.nushell.shellAliases.rebuild = "sudo nixos-rebuild switch --flake ~/nix#homelab";
+  # rc.d/ drop-in rather than ~/.xonshrc, which base.nix owns.
+  xdg.configFile."xonsh/rc.d/rebuild.xsh".text = ''
+    aliases["rebuild"] = "sudo nixos-rebuild switch --flake ~/nix#homelab"
+  '';
 
   services.vscode-tunnel = {
     enable = true;
