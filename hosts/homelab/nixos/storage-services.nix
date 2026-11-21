@@ -4,13 +4,15 @@
 # run (`disko --mode disko .../storage.nix`). ./default.nix imports both.
 { pkgs, ... }:
 {
-  # First boot: set per-directory redundancy that differs from the pool
-  # default (replicas=2, no EC). bcachefs inherits these to newly written files.
+  # Per-directory redundancy that differs from the pool default (replicas=2,
+  # no EC). bcachefs inherits these to newly written files and reconciles
+  # existing ones in the background. The stamp is versioned: bump it to re-run
+  # this after changing the options below (v2 = erasure coding on, except tier3).
   systemd.services.bcachefs-tiering = {
     description = "Per-directory bcachefs redundancy";
     wantedBy = [ "multi-user.target" ];
     after = [ "local-fs.target" ];
-    unitConfig.ConditionPathExists = "!/var/lib/bcachefs-tiering.done";
+    unitConfig.ConditionPathExists = "!/var/lib/bcachefs-tiering-v2.done";
     path = [ pkgs.bcachefs-tools ];
     serviceConfig = {
       Type = "oneshot";
@@ -18,8 +20,9 @@
     };
     script = ''
       set -eu
-      bcachefs set-file-option --data_replicas=3 --erasure_code=0 /data/tier1
-      bcachefs set-file-option --data_replicas=2 --erasure_code=0 /data/tier2
+      # tier1 with EC at replicas=3 is RAID6 (2 parity); EC caps replicas at 3.
+      bcachefs set-file-option --data_replicas=3 --erasure_code=1 /data/tier1
+      bcachefs set-file-option --data_replicas=2 --erasure_code=1 /data/tier2
       bcachefs set-file-option --data_replicas=1 --erasure_code=0 /data/tier3
       # nix store: same as /var - pin to SSDs so app and update reads never hit
       # the slow HDDs (1x replicas, no target would spread it across all disks).
@@ -31,9 +34,9 @@
       # per-dir k3s/kubelet lines are covered by this one. /var is a plain dir
       # in the root subvolume (no var subvolume in the layout), so this sets
       # inode options on the dir itself.
-      bcachefs set-file-option --data_replicas=2 --foreground_target=ssd --erasure_code=0 /var
-      bcachefs set-file-option --data_replicas=2 --foreground_target=ssd --erasure_code=0 /nix
-      touch /var/lib/bcachefs-tiering.done
+      bcachefs set-file-option --data_replicas=2 --foreground_target=ssd --erasure_code=1 /var
+      bcachefs set-file-option --data_replicas=2 --foreground_target=ssd --erasure_code=1 /nix
+      touch /var/lib/bcachefs-tiering-v2.done
     '';
   };
 
