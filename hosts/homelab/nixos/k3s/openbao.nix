@@ -27,15 +27,20 @@ in
       kubectl get ns infra >/dev/null 2>&1 || { echo "infra namespace not ready" >&2; exit 0; }
 
       mkdir -p ${dir}
-      [ -f ${dir}/unseal.key ] || openssl rand -hex 32 > ${dir}/unseal.key
+      # Raw 32 bytes. Replace a malformed key (an earlier version wrote hex)
+      # only while OpenBao is uninitialized, i.e. nothing is encrypted with it.
+      if [ ! -f ${dir}/unseal.key ] ||
+         { [ ! -f ${dir}/init.json ] && [ "$(stat -c %s ${dir}/unseal.key)" != 32 ]; }; then
+        openssl rand -out ${dir}/unseal.key 32
+      fi
 
       kubectl -n infra create secret generic openbao-unseal-key \
         --from-file=key=${dir}/unseal.key --dry-run=client -o yaml | kubectl apply -f -
 
-      phase=$(kubectl -n infra get pod openbao-0 -o jsonpath='{.status.phase}' 2>/dev/null || true)
-      [ "$phase" = Running ] || { echo "openbao-0 not running yet" >&2; exit 0; }
+      phase=$(kubectl -n infra get pod infra-openbao-0 -o jsonpath='{.status.phase}' 2>/dev/null || true)
+      [ "$phase" = Running ] || { echo "infra-openbao-0 not running yet" >&2; exit 0; }
 
-      bao() { kubectl -n infra exec openbao-0 -c openbao -- env BAO_ADDR=http://127.0.0.1:8200 bao "$@"; }
+      bao() { kubectl -n infra exec infra-openbao-0 -c openbao -- env BAO_ADDR=http://127.0.0.1:8200 bao "$@"; }
 
       # `bao status` exits 2 while sealed/uninitialized, hence the || true.
       status=$(bao status -format=json 2>/dev/null || true)
