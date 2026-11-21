@@ -1,8 +1,9 @@
 # Hands-free OpenBao bootstrap for argohome's apps/infra/openbao. A timer runs
 # an idempotent oneshot that (1) generates the static-seal key once and
-# publishes it as the Secret openbao-unseal-key, then (2) runs `bao operator
-# init` once the pod reports a static seal. With a static seal the pod
-# unseals itself on every restart, so no unseal step is ever manual.
+# publishes it as the Secret openbao-unseal-key, (2) runs `bao operator init`
+# once the pod reports a static seal, and (3) configures the KV mount and
+# Kubernetes auth External Secrets needs. With a static seal the pod unseals
+# itself on every restart, so no unseal step is ever manual.
 #
 # Key and init output (recovery keys + root token) live under tier1, so they
 # survive a cluster rebuild with intact /data and ride along in the weekly
@@ -44,14 +45,53 @@ in
 
       # `bao status` exits 2 while sealed/uninitialized, hence the || true.
       status=$(bao status -format=json 2>/dev/null || true)
-      [ "$(echo "$status" | jq -r '.initialized')" = false ] || exit 0
 
-      # Never init under the default Shamir seal: it would emit unseal keys we
-      # don't persist. Wait until argohome switches the pod to the static seal.
-      [ "$(echo "$status" | jq -r '.type')" = static ] || { echo "seal is not static yet" >&2; exit 0; }
+      if [ "$(echo "$status" | jq -r '.initialized')" = false ]; then
+        # Never init under the default Shamir seal: it would emit unseal keys we
+        # don't persist. Wait until argohome switches the pod to the static seal.
+        [ "$(echo "$status" | jq -r '.type')" = static ] || { echo "seal is not static yet" >&2; exit 0; }
 
-      bao operator init -format=json > ${dir}/init.json.tmp
-      mv ${dir}/init.json.tmp ${dir}/init.json
+        bao operator init -format=json > ${dir}/init.json.tmp
+        mv ${dir}/init.json.tmp ${dir}/init.json
+      fi
+
+      # Configure what External Secrets needs (argohome apps/infra/external-secrets):
+      # a KV v2 mount at secret/, Kubernetes auth, and a read-only role bound to
+      # the operator's ServiceAccount. Every step is idempotent, so it re-applies
+      # on each timer run. The root token goes in on stdin, never in argv, so it
+      # can't show up in `ps`; the first stdin line is the token, the rest is
+      # whatever the command itself reads (e.g. a policy for `policy write -`).
+      [ -f ${dir}/init.json ] || exit 0
+      [ "$(echo "$status" | jq -r '.sealed')" = false ] || { echo "openbao is sealed" >&2; exit 0; }
+      root=$(jq -r .root_token ${dir}/init.json)
+
+      broot() {
+        { printf '%s\n' "$root"; cat; } | kubectl -n infra exec -i infra-openbao-0 -c openbao -- \
+          sh -c 'read -r BAO_TOKEN; export BAO_TOKEN BAO_ADDR=http://127.0.0.1:8200; exec bao "$@"' sh "$@"
+      }
+
+      broot secrets list -format=json </dev/null | jq -e 'has("secret/")' >/dev/null ||
+        broot secrets enable -path=secret -version=2 kv </dev/null
+      broot auth list -format=json </dev/null | jq -e 'has("kubernetes/")' >/dev/null ||
+        broot auth enable kubernetes </dev/null
+
+      # The pod's own ServiceAccount token reviews logins (the chart binds it to
+      # system:auth-delegator); no host CA needed from inside the cluster.
+      broot write auth/kubernetes/config kubernetes_host=https://kubernetes.default.svc:443 </dev/null >/dev/null
+
+      broot policy write eso-read - >/dev/null <<'POLICY'
+      path "secret/data/homelab/*" {
+        capabilities = ["read"]
+      }
+      path "secret/metadata/homelab/*" {
+        capabilities = ["read", "list"]
+      }
+      POLICY
+
+      broot write auth/kubernetes/role/eso-read \
+        bound_service_account_names=external-secrets \
+        bound_service_account_namespaces=infra \
+        policies=eso-read ttl=1h </dev/null >/dev/null
     '';
   };
 
