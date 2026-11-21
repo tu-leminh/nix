@@ -93,7 +93,8 @@ data across every device by free space instead of a fixed hot/cold split.
 Pool format args: `--metadata_target=ssd --replicas=2 --gc_reserve_percent=5`.
 The 5% is the kernel-minimum copygc reserve (default 8% held back ~490 GB on
 this pool); runtime-tunable via `bcachefs set-fs-option`, no reformat needed.
-No erasure coding, encryption, or compression.
+No encryption or compression. Erasure coding is per-directory (see below), not
+a pool default.
 
 Subvolumes → mounts: `root`→`/`, `data/tier1..3`→`/data/tier1..3`.
 `/var` is a plain dir in the root subvolume (no var subvolume in the layout —
@@ -101,14 +102,17 @@ its options are inode options, see below).
 
 ### Per-directory redundancy
 
-`--replicas=2` (no EC) is the format default, so `/` and `/data/tier2` need
-nothing extra. `storage-services.nix` runs a first-boot oneshot (`bcachefs-tiering`,
-stamp `/var/lib/bcachefs-tiering.done`) that sets the rest via `bcachefs
-set-file-option`, inherited by newly written files:
+`--replicas=2` (no EC) is the format default. `storage-services.nix` runs a
+oneshot (`bcachefs-tiering`, versioned stamp `/var/lib/bcachefs-tiering-v2.done`;
+bump the version to re-run after editing) that sets per-directory options via
+`bcachefs set-file-option`. They are inherited by new files and applied to
+existing ones by background reconcile:
 
-- `/data/tier1` → `--data_replicas=3 --erasure_code=0` (3-way mirror)
+- `/data/tier1` → `--data_replicas=3 --erasure_code=1` (EC at 3 = RAID6)
+- `/data/tier2` → `--data_replicas=2 --erasure_code=1`
 - `/data/tier3` → `--data_replicas=1 --erasure_code=0`
-- `/var` → `--data_replicas=2 --foreground_target=ssd --erasure_code=0` —
+- `/nix` → `--data_replicas=2 --foreground_target=ssd --erasure_code=1`
+- `/var` → `--data_replicas=2 --foreground_target=ssd --erasure_code=1` —
   covers the whole subtree: k3s's embedded SQLite datastore + containerd
   layer extraction, journald, `/var/lib/homelab` — small latency-sensitive
   random I/O that the pool-wide default would spread across the slow HDDs.
@@ -122,10 +126,14 @@ set-file-option`, inherited by newly written files:
 - **Never add `--casefold`** — casefolded dirents break overlayfs, which is
   unreliable on bcachefs anyway (k3s avoids it via `--snapshotter=native`,
   see K3s section below). Off by default; recheck on bcachefs/kernel updates.
-- **EC was dropped** to cut write amplification on the slow/SMR HDDs (parity
-  stripe RMW was a big source of I/O stalls). Plain replication only now.
-- `replicas=3` over 3 HDDs is 3-way mirroring — tolerates 2 device failures at
-  3× space cost.
+- **EC was dropped once** to cut write amplification on the slow/SMR HDDs
+  (parity stripe RMW caused I/O stalls) and re-enabled for everything except
+  tier3 on 2026-11-21. If those stalls return, set `--erasure_code=0` on the
+  affected directory and bump the stamp version.
+- **`metadata_replicas` is filesystem-wide** (currently 2); there is no
+  per-directory metadata redundancy, so tier1 cannot get its own metadata
+  copies. Raising it pool-wide costs about 28G more on the near-full SSDs.
+- EC at `data_replicas=3` is RAID6 (2 parity); EC caps replicas at 3.
 - Changing disks = edit `by-id` paths + labels in `hosts/homelab/nixos/storage.nix`.
 
 ## Backup
