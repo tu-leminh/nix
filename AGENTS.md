@@ -147,6 +147,14 @@ dated folders (current + 3 previous) — `dirs`, `keep`, and `schedule` are
 plain `let`-bound variables at the top of the file, meant to be the only
 things edited when tuning this.
 
+The prune runs **before** the copy (keeping `keep - 1`) and its failure does
+not stop the copy; previously it ran after, so a full quota made the copy fail
+and old snapshots were never removed. The service sets
+`RCLONE_DRIVE_USE_TRASH=false`, because Drive's trash counts against the quota
+— deleting by hand in the Drive UI also lands in the trash, so empty it too.
+A failed copy fails the unit (check `systemctl status gdrive-backup`); there
+is no notification.
+
 Restore is manual, on demand: `systemctl start
 gdrive-restore@<date-or-latest>.service` (a template unit, never
 auto-started) pulls a given dated snapshot — or the most recent one — back

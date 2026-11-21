@@ -27,24 +27,36 @@ in
     description = "Weekly offsite backup of /data/tier1 and /data/tier2 to Google Drive";
     unitConfig.ConditionPathExists = rcloneConfig;
     path = [ pkgs.rclone ];
-    environment.RCLONE_CONFIG = rcloneConfig;
+    environment = {
+      RCLONE_CONFIG = rcloneConfig;
+      # Drive's trash counts against the quota, so deletes (purge, overwritten
+      # files) must bypass it or old snapshots never free any space.
+      RCLONE_DRIVE_USE_TRASH = "false";
+    };
     serviceConfig.Type = "oneshot";
     script = ''
       set -eu
       date=$(date +%Y%m%d)
 
+      # Prune BEFORE copying, and don't let a prune error stop the copy: when
+      # the quota is full the copy fails, and pruning only after it meant old
+      # snapshots were never removed (nix#9). Keep one fewer than `keep` so
+      # that, with today's snapshot, exactly `keep` remain. Snapshot dirs sort
+      # chronologically as plain strings (YYYYMMDD); `head -n -N` (GNU
+      # coreutils) prints all but the newest N.
+      rclone lsf --dirs-only "${remote}/" | sort | head -n -${toString (keep - 1)} | while read -r old; do
+        rclone purge "${remote}/$old"
+      done || echo "prune failed, continuing" >&2
+
       # Each source path is mirrored as-is under the dated snapshot, e.g.
       # /data/tier1 -> gdrive:backup/$date/data/tier1 (no name-collapsing),
       # so the Drive layout is unambiguous and restore is a straight mirror.
+      # A failed copy still lets the others run, then fails the unit.
+      status=0
       ${lib.concatMapStringsSep "\n" (d: ''
-        rclone copy -v ${d} "${remote}/$date${d}"
+        rclone copy -v ${d} "${remote}/$date${d}" || status=1
       '') dirs}
-
-      # Snapshot dirs sort chronologically as plain strings (YYYYMMDD);
-      # `head -n -N` (GNU coreutils) prints all but the newest N.
-      rclone lsf --dirs-only "${remote}/" | sort | head -n -${toString keep} | while read -r old; do
-        rclone purge "${remote}/$old"
-      done
+      exit $status
     '';
   };
 
