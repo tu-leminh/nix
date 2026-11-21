@@ -27,7 +27,7 @@ in
   systemd.services.gdrive-backup = {
     description = "Weekly offsite backup of /data/tier1 and /data/tier2 to Google Drive";
     unitConfig.ConditionPathExists = rcloneConfig;
-    path = [ pkgs.rclone ];
+    path = [ pkgs.rclone pkgs.bcachefs-tools ];
     environment = {
       RCLONE_CONFIG = rcloneConfig;
       # Drive's trash counts against the quota, so deletes (purge, overwritten
@@ -44,15 +44,40 @@ in
       # (nix#11). Like the prune, a failure here must not stop the copy.
       rclone cleanup "${drive}" || echo "trash cleanup failed, continuing" >&2
 
+      # A dated folder only counts as a snapshot once its COMPLETE marker exists
+      # (written last, below), so a failed or interrupted run is never mistaken
+      # for a good backup by the prune or by gdrive-restore@latest (nix#17).
+      complete() { rclone lsf --files-only "${remote}/$1" 2>/dev/null | grep -qx COMPLETE; }
+
       # Prune BEFORE copying, and don't let a prune error stop the copy: when
       # the quota is full the copy fails, and pruning only after it meant old
-      # snapshots were never removed (nix#9). Keep one fewer than `keep` so
-      # that, with today's snapshot, exactly `keep` remain. Snapshot dirs sort
-      # chronologically as plain strings (YYYYMMDD); `head -n -N` (GNU
-      # coreutils) prints all but the newest N.
-      rclone lsf --dirs-only "${remote}/" | sort | head -n -${toString (keep - 1)} | while read -r old; do
-        rclone purge "${remote}/$old"
-      done || echo "prune failed, continuing" >&2
+      # snapshots were never removed (nix#9). Incomplete folders (failed runs)
+      # are always removed; of the complete ones keep one fewer than `keep`, so
+      # that with today's snapshot exactly `keep` remain. Folder names sort
+      # chronologically as plain strings (YYYYMMDD/).
+      {
+        good=""
+        for d in $(rclone lsf --dirs-only "${remote}/" | sort); do
+          if complete "$d"; then good="$good $d"; else rclone purge "${remote}/$d"; fi
+        done
+        for d in $(printf '%s\n' $good | head -n -${toString (keep - 1)}); do
+          rclone purge "${remote}/$d"
+        done
+      } || echo "prune failed, continuing" >&2
+
+      # Copy from read-only bcachefs snapshots, not the live directories: a
+      # run takes hours, and live SQLite/pebbledb files (Vaultwarden, OpenBao)
+      # copied mid-write can't be restored. Snapshots are copy-on-write, so
+      # they cost almost nothing, and they are always removed again.
+      snapdir=/var/lib/backup-snap
+      cleanup_snaps() {
+        for s in "$snapdir"/*; do
+          if [ -e "$s" ]; then bcachefs subvolume delete "$s"; fi
+        done
+      }
+      trap cleanup_snaps EXIT
+      cleanup_snaps # leftovers from an interrupted run
+      mkdir -p "$snapdir"
 
       # Each source path is mirrored as-is under the dated snapshot, e.g.
       # /data/tier1 -> gdrive:backup/$date/data/tier1 (no name-collapsing),
@@ -60,8 +85,17 @@ in
       # A failed copy still lets the others run, then fails the unit.
       status=0
       ${lib.concatMapStringsSep "\n" (d: ''
-        rclone copy -v ${d} "${remote}/$date${d}" || status=1
+        snap="$snapdir/${baseNameOf d}"
+        if bcachefs subvolume snapshot -r ${d} "$snap"; then
+          rclone copy -v "$snap" "${remote}/$date${d}" || status=1
+        else
+          status=1
+        fi
       '') dirs}
+
+      if [ $status -eq 0 ]; then
+        date -Is | rclone rcat "${remote}/$date/COMPLETE"
+      fi
       exit $status
     '';
   };
@@ -92,7 +126,12 @@ in
       set -eu
       snapshot=$SNAPSHOT
       if [ "$snapshot" = "latest" ]; then
-        snapshot=$(rclone lsf --dirs-only "${remote}/" | sort | tail -n1)
+        # Newest folder with a COMPLETE marker; never a partial run.
+        snapshot=""
+        for d in $(rclone lsf --dirs-only "${remote}/" | sort -r); do
+          if rclone lsf --files-only "${remote}/$d" | grep -qx COMPLETE; then snapshot=''${d%/}; break; fi
+        done
+        [ -n "$snapshot" ] || { echo "no complete snapshot found" >&2; exit 1; }
       fi
 
       ${lib.concatMapStringsSep "\n" (d: ''
