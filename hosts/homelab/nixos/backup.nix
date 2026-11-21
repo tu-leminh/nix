@@ -10,7 +10,8 @@
 # token) — not in the flake, so re-do this once after a reinstall.
 { pkgs, lib, ... }:
 let
-  remote = "gdrive:backup";
+  drive = "gdrive:"; # whole remote; `rclone cleanup` empties its trash
+  remote = "${drive}backup";
   rcloneConfig = "/root/.config/rclone/rclone.conf";
   dirs = [ "/data/tier1" "/data/tier2" ]; # full source paths, mirrored as-is on Drive
   keep = 4; # snapshots to retain (current + 3 previous)
@@ -37,6 +38,11 @@ in
     script = ''
       set -eu
       date=$(date +%Y%m%d)
+
+      # Empty the Drive trash first: it counts against the quota, and this
+      # Drive is dedicated to these backups, so nothing in it is worth keeping
+      # (nix#11). Like the prune, a failure here must not stop the copy.
+      rclone cleanup "${drive}" || echo "trash cleanup failed, continuing" >&2
 
       # Prune BEFORE copying, and don't let a prune error stop the copy: when
       # the quota is full the copy fails, and pruning only after it meant old

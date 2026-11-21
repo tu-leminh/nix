@@ -150,9 +150,10 @@ things edited when tuning this.
 The prune runs **before** the copy (keeping `keep - 1`) and its failure does
 not stop the copy; previously it ran after, so a full quota made the copy fail
 and old snapshots were never removed. The service sets
-`RCLONE_DRIVE_USE_TRASH=false`, because Drive's trash counts against the quota
-— deleting by hand in the Drive UI also lands in the trash, so empty it too.
-A failed copy fails the unit (check `systemctl status gdrive-backup`); there
+`RCLONE_DRIVE_USE_TRASH=false`, because Drive's trash counts against the quota,
+and runs `rclone cleanup gdrive:` first to empty whatever is already in it
+(also failure-tolerant). That wipes the whole Drive trash, which is fine only
+because this Drive is dedicated to these backups. A failed copy fails the unit (check `systemctl status gdrive-backup`); there
 is no notification.
 
 Restore is manual, on demand: `systemctl start
