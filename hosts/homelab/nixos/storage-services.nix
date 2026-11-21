@@ -9,12 +9,12 @@
   # override it: tier1 keeps 3 replicas (3+2 with EC), tier3 is 1 replica, no EC.
   # bcachefs inherits these to newly written files and reconciles existing ones
   # in the background. The stamp is versioned: bump it to re-run this after
-  # changing the options below (v4 = EC default, only tier3 excepted).
+  # changing the options below (v5 = EC default, only tier3 excepted, no SSD pins).
   systemd.services.bcachefs-tiering = {
     description = "Per-directory bcachefs redundancy";
     wantedBy = [ "multi-user.target" ];
     after = [ "local-fs.target" ];
-    unitConfig.ConditionPathExists = "!/var/lib/bcachefs-tiering-v4.done";
+    unitConfig.ConditionPathExists = "!/var/lib/bcachefs-tiering-v5.done";
     path = [ pkgs.bcachefs-tools ];
     serviceConfig = {
       Type = "oneshot";
@@ -27,19 +27,13 @@
       bcachefs set-file-option --data_replicas=3 --erasure_code=1 /data/tier1
       bcachefs set-file-option --data_replicas=2 --erasure_code=1 /data/tier2
       bcachefs set-file-option --data_replicas=1 --erasure_code=0 /data/tier3
-      # nix store: same as /var - pin to SSDs so app and update reads never hit
-      # the slow HDDs (1x replicas, no target would spread it across all disks).
-      # /var: pin replicas=2 + SSDs explicitly (pool default would spread it
-      # across the slow HDDs). Inherited by everything below it - k3s's
-      # embedded SQLite datastore and containerd's overlayfs layer extraction
-      # (containerd is embedded in k3s, no separate top-level dir), journald,
-      # /var/lib/homelab - small, latency-sensitive random I/O, so the old
-      # per-dir k3s/kubelet lines are covered by this one. /var is a plain dir
-      # in the root subvolume (no var subvolume in the layout), so this sets
-      # inode options on the dir itself.
-      bcachefs set-file-option --data_replicas=2 --foreground_target=ssd --erasure_code=1 /var
-      bcachefs set-file-option --data_replicas=2 --foreground_target=ssd --erasure_code=1 /nix
-      touch /var/lib/bcachefs-tiering-v4.done
+      # /var and /nix were pinned to the SSDs (foreground_target=ssd); that
+      # pin is removed so they follow the pool default (2 replicas + EC, any
+      # device). Watch k3s's SQLite datastore and containerd I/O on the slower
+      # devices - if it stalls, re-pin /var to ssd and bump the stamp.
+      bcachefs set-file-option --remove-all /var
+      bcachefs set-file-option --remove-all /nix
+      touch /var/lib/bcachefs-tiering-v5.done
     '';
   };
 

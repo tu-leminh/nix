@@ -106,7 +106,7 @@ its options are inode options, see below).
 at runtime (`set-fs-option --erasure_code=1`, persisted in the superblock), so
 `/` and everything without its own override use 2 replicas + EC. `storage-services.nix`
 runs a oneshot (`bcachefs-tiering`, versioned stamp
-`/var/lib/bcachefs-tiering-v4.done`; bump the version to re-run after editing)
+`/var/lib/bcachefs-tiering-v5.done`; bump the version to re-run after editing)
 that sets that and the per-directory exceptions via `bcachefs set-file-option`.
 They are inherited by new files and applied to existing ones by background
 reconcile:
@@ -114,15 +114,11 @@ reconcile:
 - `/data/tier1` → `--data_replicas=3 --erasure_code=1` (3+2: survives 2 device losses)
 - `/data/tier2` → `--data_replicas=2 --erasure_code=1`
 - `/data/tier3` → `--data_replicas=1 --erasure_code=0`
-- `/nix` → `--data_replicas=2 --foreground_target=ssd --erasure_code=1`
-- `/var` → `--data_replicas=2 --foreground_target=ssd --erasure_code=1` —
-  covers the whole subtree: k3s's embedded SQLite datastore + containerd
-  layer extraction, journald, `/var/lib/homelab` — small latency-sensitive
-  random I/O that the pool-wide default would spread across the slow HDDs.
-  This supersedes the old per-dir `--foreground_target=ssd` lines for
-  `/var/lib/rancher/k3s` and `/var/lib/kubelet`. `/var` is a plain dir in the
-  root subvolume (no subvolume in the layout), so this sets inode options on
-  the dir itself, inherited by newly written files below it.
+- `/var` and `/nix` → no overrides (`--remove-all`): they follow the pool default
+  and are no longer pinned to the SSDs. `/var` holds k3s's embedded SQLite
+  datastore, containerd layer extraction, journald and `/var/lib/homelab` —
+  small latency-sensitive random I/O. **Monitor it** (tu-leminh/nix#4); if k3s
+  stalls, re-pin with `--foreground_target=ssd` and bump the stamp.
 
 
 **Constraints / gotchas:**
