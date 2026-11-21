@@ -24,6 +24,10 @@
       "--flannel-backend=none"
       "--disable-network-policy"
       "--disable-kube-proxy"
+      # Both families pinned: the static LAN IPv4 and the fixed ULA from
+      # ../network.nix. Without this k3s auto-picked a temporary IPv6 privacy
+      # address that later expired, leaving a stale node InternalIP.
+      "--node-ip=10.0.0.100,fd0a:100::100"
       # Pod/service IPv6 are cluster-internal ULA ranges (RFC 4193) - separate
       # from the LAN's real /64, which is only used for LB-IPAM/Gateway
       # external addresses (see apps/infra/cilium-lb in argohome).

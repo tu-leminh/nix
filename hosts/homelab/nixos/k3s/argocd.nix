@@ -78,9 +78,13 @@ in
       kubectl -n infra label secret repo-argohome \
         argocd.argoproj.io/secret-type=repository --overwrite
 
-      # Clone/refresh argohome and apply the App-of-Apps ApplicationSet.
+      # Clone/refresh argohome and apply the App-of-Apps ApplicationSet. The
+      # checkout is a read-only mirror owned by this unit, so it tracks the
+      # remote exactly (a `pull --ff-only` broke once upstream history was
+      # rewritten and failed every nixos-rebuild).
       if [ -d ${repoDir}/.git ]; then
-        git -C ${repoDir} pull --ff-only
+        git -C ${repoDir} fetch --quiet origin
+        git -C ${repoDir} reset --quiet --hard origin/HEAD
       else
         git clone ${repoUrl} ${repoDir}
       fi

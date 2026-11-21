@@ -37,6 +37,15 @@
       method = "manual"; # no DHCP
       address1 = "10.0.0.100/16,10.0.0.1";
     };
-    ipv6.method = "auto";
+    # SLAAC from the ISP's /64 (dynamic prefix) plus a fixed ULA that k3s uses
+    # as the node's IPv6 (--node-ip in ./k3s/default.nix), so the cluster's node
+    # address never depends on the ISP prefix. Privacy (temporary) addresses
+    # are off: k3s once registered one, and it went stale when it expired.
+    ipv6 = {
+      method = "auto";
+      address1 = "fd0a:100::100/64";
+      ip6-privacy = 0;
+      addr-gen-mode = "eui64";
+    };
   };
 }
