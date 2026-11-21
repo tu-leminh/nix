@@ -57,6 +57,49 @@ in
     };
   };
 
+  # Daily local snapshot of k3s's server state into tier1, so the weekly Drive
+  # backup above carries it. /var is not backed up, and losing it means a new
+  # cluster CA and every Tailscale device re-registering. k3s runs on SQLite
+  # (kine) here, so the datastore is copied with sqlite's online backup API
+  # rather than a file copy, which could catch a half-written WAL.
+  # The archive holds the cluster CA keys and token in plaintext, so it has
+  # the same Drive-account trade-off as the OpenBao bootstrap files.
+  # Restore: stop k3s, extract over /var/lib/rancher/k3s/server, start k3s.
+  systemd.services.k3s-state-backup = {
+    description = "Snapshot k3s server state (SQLite datastore, CA, token) into tier1";
+    path = with pkgs; [ sqlite zstd gnutar coreutils findutils ];
+    serviceConfig.Type = "oneshot";
+    script = ''
+      set -eu
+      umask 077
+      server=/var/lib/rancher/k3s/server
+      dest=/data/tier1/k3s-backup
+      stamp=$(date +%Y%m%d-%H%M%S)
+      work=$(mktemp -d)
+      trap 'rm -rf "$work"' EXIT
+
+      mkdir -p "$dest" "$work/server/db"
+      sqlite3 "$server/db/state.db" ".backup '$work/server/db/state.db'"
+      [ "$(sqlite3 "$work/server/db/state.db" 'pragma integrity_check')" = ok ]
+      cp -a "$server/tls" "$server/cred" "$server/token" "$work/server/"
+
+      tar -C "$work" -cf - server | zstd -q -o "$dest/k3s-server-$stamp.tar.zst.tmp"
+      mv "$dest/k3s-server-$stamp.tar.zst.tmp" "$dest/k3s-server-$stamp.tar.zst"
+
+      # Keep the newest 7; names sort chronologically.
+      ls -1 "$dest"/k3s-server-*.tar.zst | head -n -7 | xargs -r rm -f
+    '';
+  };
+
+  systemd.timers.k3s-state-backup = {
+    description = "Daily timer for k3s-state-backup";
+    wantedBy = [ "timers.target" ];
+    timerConfig = {
+      OnCalendar = "*-*-* 02:30:00"; # before the Sunday 03:00 Drive backup
+      Persistent = true;
+    };
+  };
+
   # Manually triggered restore, run as `systemctl start gdrive-restore@<snapshot>.service`
   # where <snapshot> is a date like 20260709, or the literal `latest`.
   # Systemd expands the %i instance specifier in Environment= (not inside the

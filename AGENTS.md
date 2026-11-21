@@ -156,6 +156,14 @@ Both units gate on `/root/.config/rclone/rclone.conf` existing
 (`ConditionPathExists`, skips cleanly rather than failing if it's missing)
 — see "Secrets" below for how that file gets there.
 
+`k3s-state-backup.service` (daily 02:30, same file) snapshots k3s's server
+state — the SQLite datastore via sqlite's online backup API, plus `tls`,
+`cred` and `token` — into `/data/tier1/k3s-backup/` as `k3s-server-<stamp>.tar.zst`
+(newest 7 kept), so the weekly Drive backup covers it; `/var` itself is not
+backed up. The archive holds the cluster CA keys in plaintext. Restore: stop
+k3s, extract over `/var/lib/rancher/k3s/server`, start k3s. `/data/tier3` is
+deliberately not backed up (re-downloadable media).
+
 ## Network
 
 `hosts/homelab/nixos/network.nix` sets a NetworkManager static profile on `enp6s0`:
