@@ -27,7 +27,12 @@ in
       kubectl get ns infra >/dev/null 2>&1 || { echo "infra namespace not ready" >&2; exit 0; }
 
       mkdir -p ${dir}
-      [ -f ${dir}/unseal.key ] || openssl rand -out ${dir}/unseal.key 32
+      # Raw 32 bytes. Replace a malformed key (an earlier version wrote hex)
+      # only while OpenBao is uninitialized, i.e. nothing is encrypted with it.
+      if [ ! -f ${dir}/unseal.key ] ||
+         { [ ! -f ${dir}/init.json ] && [ "$(stat -c %s ${dir}/unseal.key)" != 32 ]; }; then
+        openssl rand -out ${dir}/unseal.key 32
+      fi
 
       kubectl -n infra create secret generic openbao-unseal-key \
         --from-file=key=${dir}/unseal.key --dry-run=client -o yaml | kubectl apply -f -
