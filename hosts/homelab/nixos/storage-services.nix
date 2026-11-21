@@ -6,15 +6,15 @@
 {
   # Pool default is replicas=2 with erasure coding on (set below; the format
   # args in ./storage.nix can't change an existing pool). Per-directory options
-  # override it: tier1 is a plain 3-way mirror, tier3 is 1 replica, no EC.
+  # override it: tier1 keeps 3 replicas (3+2 with EC), tier3 is 1 replica, no EC.
   # bcachefs inherits these to newly written files and reconciles existing ones
   # in the background. The stamp is versioned: bump it to re-run this after
-  # changing the options below (v3 = EC default, tier1/tier3 excepted).
+  # changing the options below (v4 = EC default, only tier3 excepted).
   systemd.services.bcachefs-tiering = {
     description = "Per-directory bcachefs redundancy";
     wantedBy = [ "multi-user.target" ];
     after = [ "local-fs.target" ];
-    unitConfig.ConditionPathExists = "!/var/lib/bcachefs-tiering-v3.done";
+    unitConfig.ConditionPathExists = "!/var/lib/bcachefs-tiering-v4.done";
     path = [ pkgs.bcachefs-tools ];
     serviceConfig = {
       Type = "oneshot";
@@ -24,7 +24,7 @@
       set -eu
       # Persisted in the superblock; any member device works as the handle.
       bcachefs set-fs-option --erasure_code=1 /dev/disk/by-id/ata-WDC_WDS500G2B0A_2013BV468107-part1
-      bcachefs set-file-option --data_replicas=3 --erasure_code=0 /data/tier1
+      bcachefs set-file-option --data_replicas=3 --erasure_code=1 /data/tier1
       bcachefs set-file-option --data_replicas=2 --erasure_code=1 /data/tier2
       bcachefs set-file-option --data_replicas=1 --erasure_code=0 /data/tier3
       # nix store: same as /var - pin to SSDs so app and update reads never hit
@@ -39,7 +39,7 @@
       # inode options on the dir itself.
       bcachefs set-file-option --data_replicas=2 --foreground_target=ssd --erasure_code=1 /var
       bcachefs set-file-option --data_replicas=2 --foreground_target=ssd --erasure_code=1 /nix
-      touch /var/lib/bcachefs-tiering-v3.done
+      touch /var/lib/bcachefs-tiering-v4.done
     '';
   };
 

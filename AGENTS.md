@@ -106,12 +106,12 @@ its options are inode options, see below).
 at runtime (`set-fs-option --erasure_code=1`, persisted in the superblock), so
 `/` and everything without its own override use 2 replicas + EC. `storage-services.nix`
 runs a oneshot (`bcachefs-tiering`, versioned stamp
-`/var/lib/bcachefs-tiering-v3.done`; bump the version to re-run after editing)
+`/var/lib/bcachefs-tiering-v4.done`; bump the version to re-run after editing)
 that sets that and the per-directory exceptions via `bcachefs set-file-option`.
 They are inherited by new files and applied to existing ones by background
 reconcile:
 
-- `/data/tier1` → `--data_replicas=3 --erasure_code=0` (plain 3-way mirror)
+- `/data/tier1` → `--data_replicas=3 --erasure_code=1` (3+2: survives 2 device losses)
 - `/data/tier2` → `--data_replicas=2 --erasure_code=1`
 - `/data/tier3` → `--data_replicas=1 --erasure_code=0`
 - `/nix` → `--data_replicas=2 --foreground_target=ssd --erasure_code=1`
@@ -131,7 +131,7 @@ reconcile:
   see K3s section below). Off by default; recheck on bcachefs/kernel updates.
 - **EC was dropped once** to cut write amplification on the slow/SMR HDDs
   (parity stripe RMW caused I/O stalls) and re-enabled as the pool default on
-  2026-11-21, except tier1 (mirror) and tier3. If those stalls return, set
+  2026-11-21, except tier3. If those stalls return, set
   `--erasure_code=0` on the affected directory and bump the stamp version.
 - **`metadata_replicas` is filesystem-wide** (currently 2); there is no
   per-directory metadata redundancy, so tier1 cannot get its own metadata
