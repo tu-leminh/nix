@@ -41,6 +41,7 @@
     lazygit
     superfile
     claude-code
+    gh
     codex
     antigravity-ide
     opencode

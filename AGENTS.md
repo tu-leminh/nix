@@ -217,7 +217,7 @@ switching, gaps, minimize, pixel move/resize, float) have no equivalent.
 Home Manager's Generic Linux target exposes Ubuntu's Mesa/EGL runtime to all
 Nix GUI apps via `/run/opengl-driver`.
 
-CLI/TUI tools (neovim, lazygit, superfile, claude-code, codex, antigravity-ide,
+CLI/TUI tools (neovim, lazygit, superfile, claude-code, gh, codex, antigravity-ide,
 opencode, uv, mise, btop, k9s, kubectl, helm, argocd, herdr, xonsh,
 fzf) and chrome live in `modules/home/base.nix`, along with the shells and
 zoxide wiring below; `allowUnfree` lives in `modules/nixos/base.nix`. `mise` is
