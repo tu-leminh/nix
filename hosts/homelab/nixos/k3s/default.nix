@@ -5,7 +5,7 @@
 # it. Firewall is off, so no port rules.
 { config, pkgs, lib, ... }:
 {
-  imports = [ ./argocd.nix ./cilium.nix ./openbao.nix ];
+  imports = [ ./argocd.nix ./cilium.nix ];
 
   services.k3s = {
     enable = true;

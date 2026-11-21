@@ -58,7 +58,7 @@ hosts/
   homelab/nixos/default.nix  installed host composition; hostname and stateVersion
   homelab/nixos/installer.nix  homelab's bcachefs installation ISO
   homelab/nixos/storage.nix  standalone disko layout for the 5-disk pool
-  homelab/nixos/k3s/         homelab-only K3s, Cilium, Argo CD and OpenBao bootstrap
+  homelab/nixos/k3s/         homelab-only K3s, Cilium, and Argo CD bootstrap
   homelab/home/default.nix   mt identity and selected shared home capabilities
   work-linux/home/default.nix  standalone Home Manager config for tu-le5
 modules/
@@ -347,13 +347,11 @@ state, not in the flake:
   an interactive `code tunnel user login` on each machine itself.
 - The Google Drive `rclone.conf` (`backup.nix`), created via an interactive
   `sudo rclone config` on the box itself — no separate machine or file copy.
-- OpenBao's static-seal key and init output (recovery keys, root token),
-  generated automatically by `homelab-openbao-bootstrap` (`k3s/openbao.nix`,
-  run by a 10-minute timer) into `/data/tier1/openbao/bootstrap`. Plaintext, and
-  included in the Drive backup.
 
-The first three are not restored automatically on reinstall; re-do each once.
-The OpenBao files survive a rebuild with intact `/data`.
+These are not restored automatically on reinstall; re-do each once. OpenBao is
+entirely argohome's concern (it generates its own static-seal key into
+`/data/tier1/openbao/data`, which the Drive backup covers); nothing in this
+flake touches it.
 
 ## Validation
 
