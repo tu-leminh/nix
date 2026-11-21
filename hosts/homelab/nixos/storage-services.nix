@@ -39,7 +39,7 @@
       # inode options on the dir itself.
       bcachefs set-file-option --data_replicas=2 --foreground_target=ssd --erasure_code=1 /var
       bcachefs set-file-option --data_replicas=2 --foreground_target=ssd --erasure_code=1 /nix
-      touch /var/lib/bcachefs-tiering-v2.done
+      touch /var/lib/bcachefs-tiering-v3.done
     '';
   };
 
