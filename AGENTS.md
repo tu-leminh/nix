@@ -58,7 +58,7 @@ hosts/
   homelab/nixos/default.nix  installed host composition; hostname and stateVersion
   homelab/nixos/installer.nix  homelab's bcachefs installation ISO
   homelab/nixos/storage.nix  standalone disko layout for the 5-disk pool
-  homelab/nixos/k3s/         homelab-only K3s, Cilium, and Argo CD bootstrap
+  homelab/nixos/k3s/         homelab-only K3s, Cilium, Argo CD and OpenBao bootstrap
   homelab/home/default.nix   mt identity and selected shared home capabilities
   work-linux/home/default.nix  standalone Home Manager config for tu-le5
 modules/
@@ -218,7 +218,7 @@ Home Manager's Generic Linux target exposes Ubuntu's Mesa/EGL runtime to all
 Nix GUI apps via `/run/opengl-driver`.
 
 CLI/TUI tools (neovim, lazygit, superfile, claude-code, codex, antigravity-ide,
-opencode, uv, mise, btop, k9s, kubectl, helm, argocd, herdr, sops, age, xonsh,
+opencode, uv, mise, btop, k9s, kubectl, helm, argocd, herdr, xonsh,
 fzf) and chrome live in `modules/home/base.nix`, along with the shells and
 zoxide wiring below; `allowUnfree` lives in `modules/nixos/base.nix`. `mise` is
 installed without shell hooks, so use `mise exec -- …`/`mise run` or activate
@@ -322,8 +322,8 @@ app gets a `hostPath`-backed config PVC.
 
 ## Secrets
 
-No sops-nix/agenix wiring. `sops` and `age` are installed as CLI tools in
-`modules/home/base.nix`; credentials remain imperative state, not in the flake:
+No sops-nix/agenix wiring; credentials remain imperative or generated host
+state, not in the flake:
 
 - The argohome deploy key, placed by hand at `~/.ssh/id_ed25519`. Its public
   key must be a read-only Deploy key on the private argohome repo.
@@ -331,9 +331,13 @@ No sops-nix/agenix wiring. `sops` and `age` are installed as CLI tools in
   an interactive `code tunnel user login` on each machine itself.
 - The Google Drive `rclone.conf` (`backup.nix`), created via an interactive
   `sudo rclone config` on the box itself — no separate machine or file copy.
+- OpenBao's static-seal key and init output (recovery keys, root token),
+  generated automatically by `homelab-openbao-bootstrap` (`k3s/openbao.nix`,
+  run by a 10-minute timer) into `/data/tier1/openbao/bootstrap`. Plaintext, and
+  included in the Drive backup.
 
-Trade-off shared by all three: none are restored automatically on
-reinstall; re-do each once.
+The first three are not restored automatically on reinstall; re-do each once.
+The OpenBao files survive a rebuild with intact `/data`.
 
 ## Validation
 
