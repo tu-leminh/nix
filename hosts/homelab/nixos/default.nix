@@ -35,6 +35,12 @@
     isNormalUser = true;
     extraGroups = [ "wheel" "networkmanager" ];
     initialPassword = " ";
+    # SSH is key-only (modules/nixos/ssh.nix), so the keys live here and
+    # survive a reinstall; ~/.ssh/authorized_keys is still read as well.
+    openssh.authorizedKeys.keys = [
+      "ssh-ed25519 AAAAC3NzaC1lZDI1NTE5AAAAIOFUEksvugWad68n76oOSw4DEezfUiRHgIPpjoD80Fqt tu-leminh@github"
+      "ssh-ed25519 AAAAC3NzaC1lZDI1NTE5AAAAIFkPAoAWcDe7JSl+UJPULdgAXMQw7wOnPsXcbatkn603"
+    ];
   };
   systemd.tmpfiles.rules = [ "d /home/mt/.ssh 0700 mt users -" ];
   security.sudo.extraRules = [
