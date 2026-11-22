@@ -165,6 +165,16 @@ Both units gate on `/root/.config/rclone/rclone.conf` existing
 (`ConditionPathExists`, skips cleanly rather than failing if it's missing)
 — see "Secrets" below for how that file gets there.
 
+`hosts/homelab/nixos/r2-backup.nix` is the replacement in progress (nix#21):
+`r2-backup.service` (Sun 04:00) uploads one age-encrypted `tar.zst` of the
+same snapshots to Cloudflare R2 and must stay strictly inside the free tier.
+Its guards (bucket total under `hardCap` before and after the upload, at most
+`keep` archives, a monthly Class A op budget, no reads) are described at the
+top of the file; keep them when changing it. Restore with
+`r2-restore@<date-or-latest>`. Both units are skipped until the `r2` rclone
+remote and the age recipients file exist. Keep the Drive backup until an R2
+archive has been test-restored.
+
 ## Network
 
 `hosts/homelab/nixos/network.nix` sets a NetworkManager static profile on `enp6s0`:
