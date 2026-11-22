@@ -156,36 +156,14 @@ github`, then restart the unit with `systemctl --user restart
 code-tunnel.service`. The current VS Code Linux installation instructions are
 available at <https://code.visualstudio.com/docs/setup/linux>.
 
-## 7. Offsite backup (optional)
+## 7. Offsite backup
 
-`/data/tier1` and `/data/tier2` back up weekly (Sunday 03:00) to Google
-Drive, keeping the latest 4 snapshots. First-time setup is interactive, once,
-directly on the box (it already has a browser):
-
-```
-sudo rclone config
-```
-
-Create a remote named **`gdrive`** (type `drive`) and complete the Google
-OAuth flow. See `hosts/homelab/nixos/backup.nix` for the schedule/retention knobs.
-
-Trigger a backup on demand, outside the weekly schedule:
-
-```
-sudo systemctl start gdrive-backup.service
-journalctl -u gdrive-backup -f   # follow progress
-```
-
-## 8. Recovering data from a backup
-
-After a reinstall (steps 1–5) and redoing step 7's `sudo rclone config`,
-restore the most recent snapshot — or a specific dated one — with:
-
-```
-sudo systemctl start gdrive-restore@latest.service
-# or: sudo systemctl start gdrive-restore@20260709.service
-journalctl -u 'gdrive-restore@*' -e
-```
+Handled by argohome, not this flake: `apps/infra/backup` there backs up
+`/data/tier1` and `/data/tier2` weekly to Cloudflare R2 (encrypted to your SSH
+keys) and documents restore in its README. After a full reinstall, restore
+*before* bootstrapping Argo CD, using the README's no-cluster restore with a
+new R2 token from the Cloudflare dashboard: the stored token lives in OpenBao,
+which is itself inside the backup.
 
 ## Work laptop (Ubuntu)
 
