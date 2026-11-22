@@ -137,43 +137,14 @@ reconcile:
 
 ## Backup
 
-`hosts/homelab/nixos/backup.nix`: `gdrive-backup.service` + matching `.timer` take
-a weekly (Sun 03:00) snapshot of `/data/tier1` and `/data/tier2` to Google
-Drive via `rclone`. Each source path is mirrored as-is (not collapsed to a
-basename) under a dated folder, e.g. `/data/tier1` →
-`gdrive:backup/<YYYYMMDD>/data/tier1`, so the Drive layout is unambiguous and
-restore is a straight mirror back. A prune step keeps only the newest 4
-dated folders (current + 3 previous) — `dirs`, `keep`, and `schedule` are
-plain `let`-bound variables at the top of the file, meant to be the only
-things edited when tuning this.
-
-The prune runs **before** the copy (keeping `keep - 1`) and its failure does
-not stop the copy; previously it ran after, so a full quota made the copy fail
-and old snapshots were never removed. The service sets
-`RCLONE_DRIVE_USE_TRASH=false`, because Drive's trash counts against the quota,
-and runs `rclone cleanup gdrive:` first to empty whatever is already in it
-(also failure-tolerant). That wipes the whole Drive trash, which is fine only
-because this Drive is dedicated to these backups. A failed copy fails the unit (check `systemctl status gdrive-backup`); there
-is no notification.
-
-Restore is manual, on demand: `systemctl start
-gdrive-restore@<date-or-latest>.service` (a template unit, never
-auto-started) pulls a given dated snapshot — or the most recent one — back
-down to the same local paths.
-
-Both units gate on `/root/.config/rclone/rclone.conf` existing
-(`ConditionPathExists`, skips cleanly rather than failing if it's missing)
-— see "Secrets" below for how that file gets there.
-
-`hosts/homelab/nixos/r2-backup.nix` is the replacement in progress (nix#21):
-`r2-backup.service` (Sun 04:00) uploads one age-encrypted `tar.zst` of the
-same snapshots to Cloudflare R2 and must stay strictly inside the free tier.
-Its guards (bucket total under `hardCap` before and after the upload, at most
-`keep` archives, a monthly Class A op budget, no reads) are described at the
-top of the file; keep them when changing it. Restore with
-`r2-restore@<date-or-latest>`. Both units are skipped until the `r2` rclone
-remote and the age recipients file exist. Keep the Drive backup until an R2
-archive has been test-restored.
+Offsite backup is argohome's concern, not this flake's: argohome's
+`apps/infra/backup` runs a weekly CronJob that snapshots `/data/tier1` and
+`/data/tier2` (read-only bcachefs snapshots), uploads one age-encrypted
+archive to Cloudflare R2 within the free tier, and restores via a suspended
+`r2-restore` CronJob (see its README). The R2 credentials live in OpenBao. The
+former host-side Google Drive units (`backup.nix`) and the never-activated
+`r2-backup.nix` were removed (nix#21); `wrangler` stays in the home packages
+for managing the bucket.
 
 ## Network
 
@@ -355,13 +326,11 @@ state, not in the flake:
   key must be a read-only Deploy key on the private argohome repo.
 - The VS Code tunnel's GitHub token (`modules/home/vscode.nix`), created via
   an interactive `code tunnel user login` on each machine itself.
-- The Google Drive `rclone.conf` (`backup.nix`), created via an interactive
-  `sudo rclone config` on the box itself — no separate machine or file copy.
 
 These are not restored automatically on reinstall; re-do each once. OpenBao is
 entirely argohome's concern (it generates its own static-seal key into
-`/data/tier1/openbao/data`, which the Drive backup covers); nothing in this
-flake touches it.
+`/data/tier1/openbao/data`, which argohome's R2 backup covers); nothing in
+this flake touches it.
 
 ## Validation
 
