@@ -52,6 +52,7 @@
     kubectl
     kubernetes-helm
     argocd
+    wrangler # Cloudflare CLI, for the R2 backup bucket (nix#21)
     herdr
 
     # WezTerm's default shell, plus fzf for zoxide's interactive `zi` picker
