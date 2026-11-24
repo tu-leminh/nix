@@ -12,7 +12,7 @@
 # that's itself out of room. Only metadata_target=ssd remains (ssd+nvme
 # group), letting the allocator spread data across every device by free
 # space instead of a fixed hot/cold split. ESP (/boot) on the NVMe. Pool
-# default replicas=2, no EC (covers / and tier2); per-directory overrides
+# default replicas=2; EC (enabled at runtime) and the tier1/tier3 exceptions
 # live in ./storage-services.nix.
 #
 # A bare attrset, not a `{ ... }:` module function: the disko CLI does

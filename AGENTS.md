@@ -106,19 +106,28 @@ its options are inode options, see below).
 at runtime (`set-fs-option --erasure_code=1`, persisted in the superblock), so
 `/` and everything without its own override use 2 replicas + EC. `storage-services.nix`
 runs a oneshot (`bcachefs-tiering`, versioned stamp
-`/var/lib/bcachefs-tiering-v5.done`; bump the version to re-run after editing)
-that sets that and the per-directory exceptions via `bcachefs set-file-option`.
-They are inherited by new files and applied to existing ones by background
-reconcile:
+`/var/lib/bcachefs-tiering-v8.done`; bump the version to re-run after editing)
+that sets that and the only two per-directory exceptions via
+`bcachefs set-file-option`. They are inherited by new files and applied to
+existing ones by background reconcile:
 
-- `/data/tier1` → `--data_replicas=3 --erasure_code=1` (3+2: survives 2 device losses)
-- `/data/tier2` → `--data_replicas=2 --erasure_code=1`
+- `/data/tier1` → `--data_replicas=3` (3+2 with EC: survives 2 device losses)
 - `/data/tier3` → `--data_replicas=1 --erasure_code=0`
-- `/var` and `/nix` → no overrides (`--remove-all`): they follow the pool default
-  and are no longer pinned to the SSDs. `/var` holds k3s's embedded SQLite
-  datastore, containerd layer extraction, journald and `/var/lib/homelab` —
-  small latency-sensitive random I/O. **Monitor it** (tu-leminh/nix#4); if k3s
-  stalls, re-pin with `--foreground_target=ssd` and bump the stamp.
+
+No data is pinned to the SSDs and there is no read cache (`promote_target`);
+only metadata prefers them (`metadata_target=ssd`, a format option). The unit
+also clears the overrides earlier layouts left on `/var`, `/var/lib/rancher`,
+`/var/lib/kubelet`, `/nix`, `/nix/store`, `/data/tier2`, `/data/tier2/configs`
+and `/data/tier3/monitoring`. `/var` holds k3s's SQLite datastore, which
+stalled on the HDDs and crashed k3s once (tu-leminh/nix#4): if that returns,
+pin `/var` with `--foreground_target=ssd` and bump the stamp.
+
+Check what applied with `getfattr -d -m '^bcachefs' <path>`:
+`bcachefs.*` are options set on that inode, `bcachefs_effective.*` what it
+actually uses. `--remove-all` re-inherits down the tree but stops at children
+with their own options, and on the read-only `/nix/store` bind mount
+`set-file-option` fails per file but still exits 0, so the unit runs it in a
+private namespace with the store remounted rw.
 
 
 **Constraints / gotchas:**
