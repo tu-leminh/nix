@@ -13,9 +13,12 @@ def kind($code): ($code % 128) as $c
   | if $c == 1 then "short" elif $c == 2 then "long" else "other" end;
 
 # Every logged test as {type, state, age_hours}. ATA logs a 16-bit lifetime
-# hour counter, so its age is taken modulo 65536.
+# hour counter, so its age is taken modulo 65536. Some firmware (WD Blue SSD)
+# logs a running test as completed at hour 0 and fills in the hour when it
+# finishes; those entries are skipped.
 def tests: .power_on_time.hours as $poh
   | ((.ata_smart_self_test_log.standard.table // [])
+      | map(select(.lifetime_hours > 0))
       | map({ type: kind(.type.value),
               state: ((.status.value / 16 | floor) as $n
                       | if $n == 0 then "ok"
