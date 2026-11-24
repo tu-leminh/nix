@@ -38,7 +38,7 @@
         /data/tier2 /data/tier2/configs /data/tier3/monitoring
       # /nix/store is a read-only bind mount, where set-file-option fails per
       # file yet exits 0; remount it rw in a private namespace, as nix-daemon does.
-      unshare -m sh -euc '
+      unshare -m ${pkgs.runtimeShell} -euc '
         mount -o remount,bind,rw /nix/store
         bcachefs set-file-option --remove-all /nix /nix/store
       '
