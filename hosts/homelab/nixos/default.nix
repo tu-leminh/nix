@@ -25,6 +25,9 @@
   boot.loader.efi.canTouchEfiVariables = true;
   boot.supportedFilesystems = [ "bcachefs" ];
   boot.kernelPackages = pkgs.linuxPackages_latest;
+  # A failed initrd (e.g. the pool refusing to mount) drops to a root shell
+  # on the console without a password, instead of a locked emergency mode.
+  boot.initrd.systemd.emergencyAccess = true;
   networking.firewall.enable = false;
 
   environment.systemPackages = with pkgs; [ bcachefs-tools keyutils ];

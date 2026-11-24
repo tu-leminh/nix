@@ -46,13 +46,46 @@
     '';
   };
 
-  # SMART monitoring for the 5 physical disks. Covers physical device health
+  # SMART monitoring for the physical disks. Covers physical device health
   # only (reallocated/pending sectors, temperature) — it knows nothing about
   # the bcachefs layer itself (replica degradation, checksum errors, scrub
   # status). Check `bcachefs fs usage -h /` periodically for that.
+  # Self-tests: short daily at 02:00, long (1.5-3h on the HDDs) Saturdays at
+  # 03:00. The health flag alone stays PASSED until a drive is nearly dead.
   services.smartd = {
     enable = true;
     autodetect = true;
+    defaults.autodetected = "-a -s (S/../.././02|L/../../6/03)";
   };
   environment.systemPackages = [ pkgs.smartmontools ];
+
+  # Self-test results as Prometheus metrics (./smart-selftest.jq), for
+  # node-exporter's textfile collector; smartctl_exporter doesn't read the
+  # self-test log. Shown per disk on Homepage (argohome).
+  systemd.services.smart-selftest-metrics = {
+    description = "Export SMART self-test results for node-exporter";
+    serviceConfig = {
+      Type = "oneshot";
+      StateDirectory = "prometheus-node-exporter-text";
+    };
+    path = [ pkgs.smartmontools pkgs.jq pkgs.gawk ];
+    script = ''
+      set -eu
+      dir=/var/lib/prometheus-node-exporter-text
+      tmp=$(mktemp "$dir/.smart_selftest.XXXXXX")
+      # smartctl's exit status is a bitmask of disk conditions, not failure.
+      for dev in $(smartctl --scan | awk '{print $1}'); do
+        smartctl -j -a -n standby "$dev" || true
+      done | jq -rs -f ${./smart-selftest.jq} > "$tmp"
+      chmod 644 "$tmp"
+      mv "$tmp" "$dir/smart_selftest.prom"
+    '';
+  };
+  systemd.timers.smart-selftest-metrics = {
+    wantedBy = [ "timers.target" ];
+    timerConfig = {
+      OnBootSec = "2min";
+      OnUnitActiveSec = "10min";
+    };
+  };
 }
