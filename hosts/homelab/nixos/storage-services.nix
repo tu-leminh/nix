@@ -6,16 +6,16 @@
 {
   # Pool default is replicas=2 with erasure coding on (set below; the format
   # args in ./storage.nix can't change an existing pool), metadata on the SSDs.
-  # Only two per-directory exceptions: tier1 keeps 3 replicas (3+2 with EC),
-  # tier3 is 1 replica, no EC. No data is pinned to the SSDs. bcachefs
-  # inherits these to newly written files and reconciles existing ones in the
-  # background. The stamp is versioned: bump it to re-run this after changing
-  # the options below (v8 = only the tier1/tier3 exceptions, all others cleared).
+  # Per-directory exceptions: tier1 keeps 3 replicas (3+2 with EC), tier3 is
+  # 1 replica, no EC, and /var is pinned to the SSDs. bcachefs inherits these
+  # to newly written files and reconciles existing ones in the background.
+  # The stamp is versioned: bump it to re-run this after changing the options
+  # below (v9 = v8 plus /var on the SSDs).
   systemd.services.bcachefs-tiering = {
     description = "Per-directory bcachefs redundancy";
     wantedBy = [ "multi-user.target" ];
     after = [ "local-fs.target" ];
-    unitConfig.ConditionPathExists = "!/var/lib/bcachefs-tiering-v8.done";
+    unitConfig.ConditionPathExists = "!/var/lib/bcachefs-tiering-v9.done";
     path = [
       pkgs.bcachefs-tools
       pkgs.util-linux
@@ -34,15 +34,23 @@
       # Clear the overrides earlier layouts left (SSD pins, read cache, manual
       # ones). --remove-all re-inherits down the tree but stops at children
       # with their own options, so each one is named.
-      bcachefs set-file-option --remove-all /var /var/lib/rancher /var/lib/kubelet \
+      bcachefs set-file-option --remove-all /var/lib/rancher /var/lib/kubelet \
         /data/tier2 /data/tier2/configs /data/tier3/monitoring
+
+      # /var (~40G: k3s's SQLite datastore, containerd, logs) on the SSDs:
+      # on the HDDs the datastore's commits stall and k3s exits (#4, and
+      # again on 2026-11-24 during a mass delete). EC is off because a stripe
+      # limited to the SSDs can't form (only 2 share a bucket size), so
+      # reconcile would park it as pending forever.
+      bcachefs set-file-option --remove-all --data_replicas=2 --erasure_code=0 \
+        --foreground_target=ssd --background_target=ssd /var
       # /nix/store is a read-only bind mount, where set-file-option fails per
       # file yet exits 0; remount it rw in a private namespace, as nix-daemon does.
       unshare -m ${pkgs.runtimeShell} -euc '
         mount -o remount,bind,rw /nix/store
         bcachefs set-file-option --remove-all /nix /nix/store
       '
-      touch /var/lib/bcachefs-tiering-v8.done
+      touch /var/lib/bcachefs-tiering-v9.done
     '';
   };
 
@@ -50,12 +58,25 @@
   # only (reallocated/pending sectors, temperature) — it knows nothing about
   # the bcachefs layer itself (replica degradation, checksum errors, scrub
   # status). Check `bcachefs fs usage -h /` periodically for that.
-  # Self-tests: short daily at 02:00, long (1.5-3h on the HDDs) Saturdays at
-  # 03:00. The health flag alone stays PASSED until a drive is nearly dead.
+  # Self-tests: short daily at 02:00, long at 03:00 (day 1 = Monday). The
+  # health flag alone stays PASSED until a drive is nearly dead. Long tests
+  # take 1.5-3h on the HDDs and slow them, so each HDD gets its own day;
+  # everything else (the SSDs, minutes each) runs Saturdays via DEVICESCAN,
+  # which skips the disks listed here.
   services.smartd = {
     enable = true;
     autodetect = true;
     defaults.autodetected = "-a -s (S/../.././02|L/../../6/03)";
+    devices = [
+      {
+        device = "/dev/disk/by-id/ata-HGST_HTS721010A9E630_JR1000D318DL7E"; # hdd0
+        options = "-a -s (S/../.././02|L/../../3/03)";
+      }
+      {
+        device = "/dev/disk/by-id/ata-WDC_WD5000LPVX-80V0TT0_WD-WX81AB48A024"; # hdd1
+        options = "-a -s (S/../.././02|L/../../7/03)";
+      }
+    ];
   };
   environment.systemPackages = [ pkgs.smartmontools ];
 
